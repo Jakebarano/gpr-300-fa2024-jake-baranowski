@@ -32,6 +32,15 @@ ew::Camera camera;
 ew::Transform monkeyTransform;
 ew::CameraController cameraController;
 
+//Material Struct
+struct Material {
+	float Ka = 1.0;
+	float Kd = 0.5;
+	float Ks = 0.5;
+	float Shininess = 128;
+}material;
+
+
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
@@ -63,7 +72,7 @@ int main() {
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
-		float time = (float)glfwGetTime();
+		float time = (float)glfwGetTime(); 
 		deltaTime = time - prevFrameTime;
 		prevFrameTime = time;
 
@@ -79,7 +88,14 @@ int main() {
 		glBindTexture(GL_TEXTURE_2D, brickTexture);
 		//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
 		shader.use();
+
 		shader.setInt("_MainTex", 0);
+		shader.setVec3("_EyePos", camera.position);
+
+		shader.setFloat("_Material.Ka", material.Ka);
+		shader.setFloat("_Material.Kd", material.Kd);
+		shader.setFloat("_Material.Ks", material.Ks);
+		shader.setFloat("_Material.Shininess", material.Shininess);
 
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
@@ -111,6 +127,13 @@ void drawUI() {
 	if (ImGui::Button("Reset Camera")) {
 		resetCamera(&camera, &cameraController);
 	}
+	if (ImGui::CollapsingHeader("Material")) {
+		ImGui::SliderFloat("AmbientK", &material.Ka, 0.0f, 1.0f);
+		ImGui::SliderFloat("DiffuseK", &material.Kd, 0.0f, 1.0f);
+		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
+		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
+	}
+
 
 	ImGui::End(); 
 
