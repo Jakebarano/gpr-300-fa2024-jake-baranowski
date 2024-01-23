@@ -52,5 +52,9 @@ namespace ew {
 		stbi_image_free(data);
 		return texture;
 	}
+	void loadTexture() {
+		stbi_set_flip_vertically_on_load(true);
+	}
+
 }
 

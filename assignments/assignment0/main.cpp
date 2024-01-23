@@ -51,7 +51,7 @@ int main() {
 	camera.fov = 60.0f; //Vertical field of view, in degrees
 
 	//Handles to OpenGL object are unsigned integers
-	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg"); //Stopped Right here (12/24pgs)
+	GLuint brickTexture = ew::loadTexture("assets/Rock051_2K-JPG_Color.jpg"); //Stopped Right here (12/24pgs)
 
 
 	//Global OpenGL variables
@@ -74,7 +74,13 @@ int main() {
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 		cameraController.move(window, &camera, deltaTime);
 
+		//Bind brick texture to texture unit 0 
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, brickTexture);
+		//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
 		shader.use();
+		shader.setInt("_MainTex", 0);
+
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		monkeyModel.draw(); //Draws monkey model using current shader
