@@ -51,7 +51,7 @@ int main() {
 	camera.fov = 60.0f; //Vertical field of view, in degrees
 
 	//Handles to OpenGL object are unsigned integers
-	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg");
+	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg"); //Stopped Right here (12/24pgs)
 
 
 	//Global OpenGL variables
