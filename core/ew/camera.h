@@ -25,7 +25,12 @@ namespace ew {
 
 			if (orthographic) {
 				
-				return glm::ortho(orthoHeight, aspectRatio, nearPlane, farPlane);
+				float width = orthoHeight * aspectRatio;
+				float r = width / 2;
+				float l = -r;
+				float t = orthoHeight / 2;
+				float b = -t;
+				return glm::ortho(l, r, b, t, nearPlane, farPlane);
 			}
 			else {
 				return glm::perspective(glm::radians(fov), aspectRatio, nearPlane, farPlane);

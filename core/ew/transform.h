@@ -15,9 +15,9 @@ namespace ew {
 
 		glm::mat4 modelMatrix() const {
 			glm::mat4 m = glm::mat4(1.0f);
-			m = glm::scale(m, scale);
-			m *= glm::mat4_cast(rotation);
 			m = glm::translate(m, position);
+			m *= glm::mat4_cast(rotation);
+			m = glm::scale(m, scale);
 			return m;
 		}
 	};
