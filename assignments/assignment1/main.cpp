@@ -26,6 +26,10 @@ int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
+
+//Postprocess variables
+unsigned int fbo, colorBuffer, depthBuffer;
+
 //ew objects
 
 ew::Camera camera;
@@ -47,8 +51,6 @@ int main() {
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 
-	//TODO: add intro code below.
-
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj"); //load the rock Monkey
 
@@ -67,6 +69,35 @@ int main() {
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK); //Back face culling
 	glEnable(GL_DEPTH_TEST); //Depth testing
+	//enable depth testing
+	glEnable(GL_DEPTH_TEST);
+
+	//create Framebuffer Object
+	glCreateFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+	//8bit RGBA colorbuffer
+	glGenTextures(1, &colorBuffer);
+	glBindTexture(GL_TEXTURE_2D, colorBuffer);
+	//glTextureStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, screenWidth, screenHeight); //Normal colorbuffer
+	glTextureStorage2D(GL_TEXTURE_2D, 1, GL_RGBA16, screenWidth, screenHeight); //slower but more effective for gamma correction
+
+	//Attach Colorbuffer to framebuffer
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
+
+	
+	//Create depthbuffer Texture
+
+	//depthbuffer declared above
+	glGenTextures(1, &depthBuffer);
+	glBindTexture(GL_TEXTURE_2D, depthBuffer);
+
+	//Create 16 bit depth buffer - must be same width/height of color buffer
+
+	glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, screenWidth, screenHeight);
+
+	//Attach to framebuffer (assuming FBO is bound properly)
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffer, 0);
 
 
 	while (!glfwWindowShouldClose(window)) {
