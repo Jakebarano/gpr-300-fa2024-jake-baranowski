@@ -1,5 +1,6 @@
 #version 450
 out vec4 FragColor; //The color of this fragment
+in vec2 UV;
 in Surface{
 	vec3 WorldPos;
 	vec3 WorldNormal;
@@ -7,10 +8,12 @@ in Surface{
 	}fs_in;
 
 	uniform sampler2D _MainTex; //2D texture sampler
+	uniform sampler2D _ColorBuffer;
 	uniform vec3 _EyePos;
 	uniform vec3 _LightDirection = vec3(0.0, -1.0, 0.0);
 	uniform vec3 _LightColor = vec3(1.0); //White Light
 	uniform vec3 _AmbientColor = vec3(0.3, 0.4, 0.46);
+
 
 	struct Material {
 		float Ka;  //Ambient coefficient (0-1)
@@ -38,5 +41,7 @@ void main(){
 	lightColor +=_AmbientColor * _Material.Ka;
 	vec3 objectColor = texture(_MainTex, fs_in.TexCoord).rgb;
 
-	FragColor = vec4(objectColor * lightColor, 1.0);
+	vec3 color = 1.0-texture(_ColorBuffer,UV).rgb;
+
+	FragColor = vec4(objectColor * lightColor * color, 1.0);
 }

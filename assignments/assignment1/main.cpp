@@ -51,7 +51,7 @@ int main() {
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 
-	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag
+	ew::Shader shader = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj"); //load the rock Monkey
 
 	//Camera
@@ -69,8 +69,7 @@ int main() {
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK); //Back face culling
 	glEnable(GL_DEPTH_TEST); //Depth testing
-	//enable depth testing
-	glEnable(GL_DEPTH_TEST);
+
 
 	//create Framebuffer Object
 	glCreateFramebuffers(1, &fbo);
@@ -100,6 +99,12 @@ int main() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffer, 0);
 
 
+	//DummyVAO 
+	unsigned int dummyVAO;
+	glCreateVertexArrays(1, &dummyVAO);
+	
+
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
@@ -108,8 +113,15 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
-		glClearColor(0.6f,0.8f,0.92f,1.0f);
+		//glClearColor(0.6f,0.8f,0.92f,1.0f);
+		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		glViewport(0, 0, screenWidth, screenHeight);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//6 vertices for quad, 3 for triangle
+		//glDrawArrays(GL_TRIANGLES, 0, 6);
 
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 		cameraController.move(window, &camera, deltaTime);
@@ -121,6 +133,7 @@ int main() {
 		shader.use();
 
 		shader.setInt("_MainTex", 0);
+		shader.setInt("_ColorBuffer", 1);
 		shader.setVec3("_EyePos", camera.position);
 
 		shader.setFloat("_Material.Ka", material.Ka);
@@ -130,6 +143,8 @@ int main() {
 
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		glBindVertexArray(dummyVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 		monkeyModel.draw(); //Draws monkey model using current shader
 
 		drawUI();
