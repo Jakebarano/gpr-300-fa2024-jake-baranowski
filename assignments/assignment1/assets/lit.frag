@@ -11,7 +11,7 @@ in Surface{
 	uniform vec3 _EyePos;
 	uniform vec3 _LightDirection = vec3(0.0, -1.0, 0.0);
 	uniform vec3 _LightColor = vec3(1.0); //White Light
-	uniform vec3 _AmbientColor = vec3(0.3, 0.4, 0.46);
+	uniform vec3 _AmbientColor = vec3(0.8, 0.2, 0.8);
 
 
 	struct Material {

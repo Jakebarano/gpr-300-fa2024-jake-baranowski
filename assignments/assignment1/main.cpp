@@ -25,6 +25,7 @@ int screenWidth = 1080;
 int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
+bool GammaCorrectionOn = false;
 
 
 //Postprocess variables
@@ -44,6 +45,9 @@ struct Material {
 	float Shininess = 128;
 }material;
 
+struct gammaPower {
+	float Kp = 1.0;
+}gammaPower;
 
 
 int main() {
@@ -70,18 +74,24 @@ int main() {
 	glCullFace(GL_BACK); //Back face culling
 	glEnable(GL_DEPTH_TEST); //Depth testing
 
-
-	//create Framebuffer Object
+	unsigned int fbo, colorBuffer;
+	//Create Framebuffer Object
 	glCreateFramebuffers(1, &fbo);
-	
-	//create 8bit/16bit RGBA colorbuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	//Create 8 bit RGBA color buffer
 	glGenTextures(1, &colorBuffer);
+	glBindTexture(GL_TEXTURE_2D, colorBuffer);
+	glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, screenWidth, screenHeight);
+	//Attach color buffer to framebuffer
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
 
-	//Create depthbuffer Texture
-	//depthbuffer declared above
+	unsigned int depthBuffer;
 	glGenTextures(1, &depthBuffer);
-
+	glBindTexture(GL_TEXTURE_2D, depthBuffer);
 	//Create 16 bit depth buffer - must be same width/height of color buffer
+	glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, screenWidth, screenHeight);
+	//Attach to framebuffer (assuming FBO is bound)
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffer, 0);
 
 	//DummyVAO 
 	unsigned int dummyVAO;
@@ -95,33 +105,13 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		glClearColor(0.6f,0.8f,0.92f,1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		 
-		//bind to frame buffer
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-		glViewport(0, 0, screenWidth, screenHeight);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0)); 
 		cameraController.move(window, &camera, deltaTime);
-		
-		//Attach Colorbuffer to framebuffer
-		glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
-		glBindTexture(GL_TEXTURE_2D, colorBuffer);
-		//glTextureStorage2D(GL_TEXTURE_2D, 1, GL_RGBA16, screenWidth, screenHeight); //slower but more effective for gamma correction
-		glTextureStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, screenWidth, screenHeight); //Normal colorbuffer
-
-		//bind depthbuffer
-		glBindTexture(GL_TEXTURE_2D, depthBuffer);
-		glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, screenWidth, screenHeight);
-
-		//Attach to framebuffer (assuming FBO is bound properly)
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffer, 0);
-
-		//Bind brick texture to texture unit 0 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, brickTexture);
 
 		shader.use();
 
@@ -138,10 +128,13 @@ int main() {
 		monkeyModel.draw(); //Draws monkey model using current shader
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		Postprocess.use();
-		glBindTextureUnit(0, colorBuffer); 
+		Postprocess.setFloat("_gammaPower.Kp", gammaPower.Kp);
+	
+		glBindTextureUnit(0, colorBuffer);
 		glBindVertexArray(dummyVAO);
 
 		//6 vertices for quad, 3 for triangle
@@ -162,6 +155,17 @@ void resetCamera(ew::Camera* camera, ew::CameraController* controller) {
 	controller->yaw = controller->pitch = 0;
 }
 
+void toggleGammaCorrection()
+{
+	if (GammaCorrectionOn == true)
+	{
+		GammaCorrectionOn = false;
+	}
+	else
+	{
+		GammaCorrectionOn = true;
+	}
+}
 
 void drawUI() {
 	ImGui_ImplGlfw_NewFrame();
@@ -178,6 +182,12 @@ void drawUI() {
 		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
+	if (ImGui::CollapsingHeader("Gamma Correction")) {
+		ImGui::SliderFloat("Power", &gammaPower.Kp, 1.0f, 2.2f);
+	}
+	/*if (ImGui::Button("Toggle Gamma Correction")) {
+		toggleGammaCorrection();
+	}*/
 
 
 	ImGui::End(); 
