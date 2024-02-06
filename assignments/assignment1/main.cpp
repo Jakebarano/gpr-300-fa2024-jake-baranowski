@@ -50,8 +50,8 @@ int main() {
 	GLFWwindow* window = initWindow("Assignment 1", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
-
-	ew::Shader shader = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
+	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag
+	ew::Shader Postprocess = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj"); //load the rock Monkey
 
 	//Camera
@@ -73,37 +73,19 @@ int main() {
 
 	//create Framebuffer Object
 	glCreateFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-
-	//8bit RGBA colorbuffer
-	glGenTextures(1, &colorBuffer);
-	glBindTexture(GL_TEXTURE_2D, colorBuffer);
-	//glTextureStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, screenWidth, screenHeight); //Normal colorbuffer
-	glTextureStorage2D(GL_TEXTURE_2D, 1, GL_RGBA16, screenWidth, screenHeight); //slower but more effective for gamma correction
-
-	//Attach Colorbuffer to framebuffer
-	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
-
 	
-	//Create depthbuffer Texture
+	//create 8bit/16bit RGBA colorbuffer
+	glGenTextures(1, &colorBuffer);
 
+	//Create depthbuffer Texture
 	//depthbuffer declared above
 	glGenTextures(1, &depthBuffer);
-	glBindTexture(GL_TEXTURE_2D, depthBuffer);
 
 	//Create 16 bit depth buffer - must be same width/height of color buffer
-
-	glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, screenWidth, screenHeight);
-
-	//Attach to framebuffer (assuming FBO is bound properly)
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffer, 0);
-
 
 	//DummyVAO 
 	unsigned int dummyVAO;
 	glCreateVertexArrays(1, &dummyVAO);
-	
-
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -113,27 +95,37 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
-		//glClearColor(0.6f,0.8f,0.92f,1.0f);
-		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		//glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		glClearColor(0.6f,0.8f,0.92f,1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		 
+		//bind to frame buffer
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		glViewport(0, 0, screenWidth, screenHeight);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		//6 vertices for quad, 3 for triangle
-		//glDrawArrays(GL_TRIANGLES, 0, 6);
-
-		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0)); 
 		cameraController.move(window, &camera, deltaTime);
+		
+		//Attach Colorbuffer to framebuffer
+		glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
+		glBindTexture(GL_TEXTURE_2D, colorBuffer);
+		//glTextureStorage2D(GL_TEXTURE_2D, 1, GL_RGBA16, screenWidth, screenHeight); //slower but more effective for gamma correction
+		glTextureStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, screenWidth, screenHeight); //Normal colorbuffer
+
+		//bind depthbuffer
+		glBindTexture(GL_TEXTURE_2D, depthBuffer);
+		glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, screenWidth, screenHeight);
+
+		//Attach to framebuffer (assuming FBO is bound properly)
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffer, 0);
 
 		//Bind brick texture to texture unit 0 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, brickTexture);
-		//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
+
 		shader.use();
 
-		shader.setInt("_MainTex", 0);
-		shader.setInt("_ColorBuffer", 1);
+		shader.setInt("_MainTex", 0);  //Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
 		shader.setVec3("_EyePos", camera.position);
 
 		shader.setFloat("_Material.Ka", material.Ka);
@@ -143,16 +135,23 @@ int main() {
 
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		glBindVertexArray(dummyVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
 		monkeyModel.draw(); //Draws monkey model using current shader
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		Postprocess.use();
+		glBindTextureUnit(0, colorBuffer); 
+		glBindVertexArray(dummyVAO);
+
+		//6 vertices for quad, 3 for triangle
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		drawUI();
 		glfwSwapBuffers(window);
 	}
 	printf("Shutting down...");
 }
-
 
 
 //Camera reset
