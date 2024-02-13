@@ -19,7 +19,13 @@ namespace ew {
 		float aspectRatio = 1.77f;
 
 		inline glm::mat4 viewMatrix()const {
-			return glm::lookAt(position, target, glm::vec3(0, 1, 0));
+			glm::vec3 toTarget = glm::normalize(target - position);
+			glm::vec3 up = glm::vec3(0, 1, 0);
+			//If camera is aligned with up vector, choose a new one
+			if (glm::abs(glm::dot(toTarget, up)) >= 1.0f - glm::epsilon<float>()) {
+				up = glm::vec3(0, 0, 1);
+			}
+			return glm::lookAt(position, target, up);
 		}
 		inline glm::mat4 projectionMatrix()const {
 
