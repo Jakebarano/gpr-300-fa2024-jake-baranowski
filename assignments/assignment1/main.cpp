@@ -58,7 +58,7 @@ int main() {
 	ew::Shader Postprocess = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj"); //load the rock Monkey
 
-	//Camera
+	//Main Camera
 
 	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
 	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at the center of the scene
