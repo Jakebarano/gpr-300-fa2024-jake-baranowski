@@ -9,7 +9,7 @@ in Surface{
 
 	uniform sampler2D _MainTex; //2D texture sampler
 	uniform vec3 _EyePos;
-	uniform vec3 _LightDirection = vec3(0.0, -1.0, 0.0);
+	uniform vec3 _LightDirection;
 	uniform vec3 _LightColor = vec3(1.0); //White Light
 	uniform vec3 _AmbientColor = vec3(0.8, 0.2, 0.8);
 

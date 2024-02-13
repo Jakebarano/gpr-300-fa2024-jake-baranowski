@@ -112,6 +112,7 @@ int main() {
 	
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0)); 
 		cameraController.move(window, &camera, deltaTime);
+		glBindTexture(GL_TEXTURE_2D, brickTexture);
 
 		shader.use();
 

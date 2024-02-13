@@ -15,6 +15,7 @@
 #include <ew/transform.h>
 #include <ew/cameraController.h>
 #include <ew/texture.h>
+#include <ew/procGen.h>
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 GLFWwindow* initWindow(const char* title, int width, int height);
@@ -35,12 +36,16 @@ unsigned int fbo, colorBuffer, depthBuffer;
 unsigned int shadowFBO, shadowMap;
 
 //ew objects
-
 ew::Camera camera;
 ew::Transform monkeyTransform;
 ew::CameraController cameraController;
+ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 
 ew::Camera shadowCam;
+
+//light variables
+//TODO:expose to lit.vert
+glm::vec3 lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
 
 //Material Struct
 struct Material {
@@ -71,7 +76,11 @@ int main() {
 	camera.fov = 60.0f; //Vertical field of view, in degrees
 
 	//ShadowCam
-	camera.target = glm::vec3(0.0f, 0.0f, 0.0f);
+	shadowCam.target = glm::vec3(0.0f, 0.0f, 0.0f);
+	shadowCam.position = camera.target - lightDir * 5.0f;
+	shadowCam.orthographic = true;
+	shadowCam.orthoHeight = 20.0f;
+	shadowCam.aspectRatio = 1.0f;
 
 	//Handles to OpenGL object are unsigned integers
 	GLuint brickTexture = ew::loadTexture("assets/Rock051_2K-JPG_Color.jpg"); //Stopped Right here (12/24pgs)
@@ -141,11 +150,13 @@ int main() {
 	
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0)); 
 		cameraController.move(window, &camera, deltaTime);
+		glBindTexture(GL_TEXTURE_2D, brickTexture);
 
-		shader.use();
+		shader.use();   
 
 		shader.setInt("_MainTex", 0);  //Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
 		shader.setVec3("_EyePos", camera.position);
+		shader.setVec3("_LightDirection", lightDir);
 
 		shader.setFloat("_Material.Ka", material.Ka);
 		shader.setFloat("_Material.Kd", material.Kd);
