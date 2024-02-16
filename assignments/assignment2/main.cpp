@@ -19,14 +19,14 @@
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 GLFWwindow* initWindow(const char* title, int width, int height);
-void drawUI();
+void drawUI(unsigned int shadowMap);
 
 //Global state
 int screenWidth = 1080;
 int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
-bool GammaCorrectionOn = false;
+bool GammaCorrectionOn = false; 
 
 
 //Postprocess variables
@@ -64,6 +64,7 @@ int main() {
 	GLFWwindow* window = initWindow("Assignment 1", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
+	ew::Shader shadowMapShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag
 	ew::Shader Postprocess = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj"); //load the rock Monkey
@@ -77,9 +78,10 @@ int main() {
 
 	//ShadowCam
 	shadowCam.target = glm::vec3(0.0f, 0.0f, 0.0f);
-	shadowCam.position = camera.target - lightDir * 5.0f;
 	shadowCam.orthographic = true;
-	shadowCam.orthoHeight = 20.0f;
+	shadowCam.orthoHeight = 10.0f;
+	shadowCam.nearPlane = 0.01f;
+	shadowCam.farPlane = 20.0f;
 	shadowCam.aspectRatio = 1.0f;
 
 	//Handles to OpenGL object are unsigned integers
@@ -135,6 +137,9 @@ int main() {
 
 
 
+
+
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
@@ -143,6 +148,25 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
+
+		shadowCam.position = camera.target - lightDir * 5.0f;
+
+
+		glm::mat4 lightProjMat = shadowCam.projectionMatrix();
+		glm::mat4 lightViewMat = shadowCam.viewMatrix();
+
+		glm::mat4 lightViewProj = lightProjMat * lightViewMat;
+
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+		glViewport(0, 0, 2048, 2048);
+		glClear(GL_DEPTH_BUFFER_BIT);
+
+		shadowMapShader.use();
+		shadowMapShader.setMat4("_ViewProjection", lightViewProj);
+
+		monkeyModel.draw();
+
+
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		glClearColor(0.6f,0.8f,0.92f,1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -179,8 +203,8 @@ int main() {
 
 		//6 vertices for quad, 3 for triangle
 		glDrawArrays(GL_TRIANGLES, 0, 3);
-
-		drawUI();
+		  
+		drawUI(shadowMap);
 		glfwSwapBuffers(window);
 	}
 	printf("Shutting down...");
@@ -207,7 +231,7 @@ void toggleGammaCorrection()
 	}
 }
 
-void drawUI() {
+void drawUI(unsigned int shadowMap) {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui::NewFrame();
@@ -228,9 +252,23 @@ void drawUI() {
 	/*if (ImGui::Button("Toggle Gamma Correction")) {
 		toggleGammaCorrection();
 	}*/
-
+	
 
 	ImGui::End(); 
+
+
+	ImGui::Begin("Shadow Map");
+	//Using a Child allow to fill all the space of the window.
+	ImGui::BeginChild("Shadow Map");
+	//Stretch image to be window size
+	ImVec2 windowSize = ImGui::GetWindowSize();
+	//Invert 0-1 V to flip vertically for ImGui display
+	//shadowMap is the texture2D handle
+	ImGui::Image((ImTextureID)shadowMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	ImGui::EndChild();
+	ImGui::End();
+
+
 
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
