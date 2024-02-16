@@ -28,23 +28,15 @@ float prevFrameTime;
 float deltaTime;
 bool GammaCorrectionOn = false; 
 
-
-//Postprocess variables
-unsigned int fbo, colorBuffer, depthBuffer;
-
-//Shadow Map variables
-unsigned int shadowFBO, shadowMap;
-
 //ew objects
 ew::Camera camera;
 ew::Transform monkeyTransform;
+ew::Transform planeTransform;
 ew::CameraController cameraController;
-ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 
 ew::Camera shadowCam;
 
 //light variables
-//TODO:expose to lit.vert
 glm::vec3 lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
 
 //Material Struct
@@ -67,7 +59,11 @@ int main() {
 	ew::Shader shadowMapShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag
 	ew::Shader Postprocess = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
+
+
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj"); //load the rock Monkey
+	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
+	planeTransform.position = glm::vec3(0, -1.0f, 0);
 
 	//Main Camera
 
@@ -78,9 +74,10 @@ int main() {
 
 	//ShadowCam
 	shadowCam.target = glm::vec3(0.0f, 0.0f, 0.0f);
+	shadowCam.position = shadowCam.target - lightDir * 5.0f; //check this
 	shadowCam.orthographic = true;
 	shadowCam.orthoHeight = 10.0f;
-	shadowCam.nearPlane = 0.01f;
+	shadowCam.nearPlane = 0.001f;
 	shadowCam.farPlane = 20.0f;
 	shadowCam.aspectRatio = 1.0f;
 
@@ -117,6 +114,7 @@ int main() {
 	glCreateVertexArrays(1, &dummyVAO);
 
 	//Shadow Map Creation
+	unsigned int shadowFBO, shadowMap;
 	glCreateFramebuffers(1, &shadowFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
 
@@ -124,6 +122,7 @@ int main() {
 	glBindTexture(GL_TEXTURE_2D, shadowMap);
 	//16 bit depth values, 2k res
 	glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, 2048, 2048);
+
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	//Pixels outside frustum should have max distance (white).
@@ -132,12 +131,13 @@ int main() {
 	float borderColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
+
 	glDrawBuffer(GL_NONE);
 	glReadBuffer(GL_NONE);
 
-
-
-
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
 
 
 	while (!glfwWindowShouldClose(window)) {
@@ -149,30 +149,33 @@ int main() {
 
 		//RENDER
 
-		shadowCam.position = camera.target - lightDir * 5.0f;
+		shadowCam.position = shadowCam.target - lightDir * 5.0f;
 
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+		glViewport(0, 0, 2048, 2048);
+		glClear(GL_DEPTH_BUFFER_BIT);
 
 		glm::mat4 lightProjMat = shadowCam.projectionMatrix();
 		glm::mat4 lightViewMat = shadowCam.viewMatrix();
 
 		glm::mat4 lightViewProj = lightProjMat * lightViewMat;
 
-		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
-		glViewport(0, 0, 2048, 2048);
-		glClear(GL_DEPTH_BUFFER_BIT);
-
 		shadowMapShader.use();
 		shadowMapShader.setMat4("_ViewProjection", lightViewProj);
+		shadowMapShader.setMat4("_Model", monkeyTransform.modelMatrix());
 
 		monkeyModel.draw();
 
+		shadowMapShader.setMat4("_Model", planeTransform.modelMatrix());
+		planeMesh.draw();
 
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		glViewport(0, 0, screenWidth, screenHeight);
 		glClearColor(0.6f,0.8f,0.92f,1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	
-		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0)); 
+		//monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0)); 
 		cameraController.move(window, &camera, deltaTime);
 		glBindTexture(GL_TEXTURE_2D, brickTexture);
 
@@ -191,8 +194,12 @@ int main() {
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		monkeyModel.draw(); //Draws monkey model using current shader
 
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		shader.setMat4("_Model", planeTransform.modelMatrix());
 
+		planeMesh.draw();
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, screenWidth, screenHeight);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		Postprocess.use();
@@ -205,6 +212,7 @@ int main() {
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		  
 		drawUI(shadowMap);
+
 		glfwSwapBuffers(window);
 	}
 	printf("Shutting down...");
@@ -246,16 +254,13 @@ void drawUI(unsigned int shadowMap) {
 		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
+	if (ImGui::CollapsingHeader("Light")) {
+		ImGui::SliderFloat3("Direction", (float*)&lightDir, -1.0f, 1.0f);
+	}
 	if (ImGui::CollapsingHeader("Gamma Correction")) {
 		ImGui::SliderFloat("Power", &gammaPower.Kp, 1.0f, 2.2f);
 	}
-	/*if (ImGui::Button("Toggle Gamma Correction")) {
-		toggleGammaCorrection();
-	}*/
-	
-
 	ImGui::End(); 
-
 
 	ImGui::Begin("Shadow Map");
 	//Using a Child allow to fill all the space of the window.
@@ -267,8 +272,6 @@ void drawUI(unsigned int shadowMap) {
 	ImGui::Image((ImTextureID)shadowMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	ImGui::EndChild();
 	ImGui::End();
-
-
 
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
