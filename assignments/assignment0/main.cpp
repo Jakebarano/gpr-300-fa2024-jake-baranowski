@@ -84,8 +84,8 @@ int main() {
 		cameraController.move(window, &camera, deltaTime);
 
 		//Bind brick texture to texture unit 0 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, brickTexture);
+		//glActiveTexture(GL_TEXTURE0);
+		glBindTextureUnit(0, brickTexture);
 		//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
 		shader.use();
 
