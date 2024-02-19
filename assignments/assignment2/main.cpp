@@ -38,6 +38,10 @@ ew::Camera shadowCam;
 
 //light variables
 glm::vec3 lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
+struct Shadow {
+	float minBias = 0.0015;
+	float maxBias = 0.005;
+}shadow;
 
 //Material Struct
 struct Material {
@@ -53,7 +57,7 @@ struct gammaPower {
 
 
 int main() {
-	GLFWwindow* window = initWindow("Assignment 1", screenWidth, screenHeight);
+	GLFWwindow* window = initWindow("Assignment 2", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 	ew::Shader shadowMapShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
@@ -78,7 +82,7 @@ int main() {
 	shadowCam.orthographic = true;
 	shadowCam.orthoHeight = 10.0f;
 	shadowCam.nearPlane = 0.001f;
-	shadowCam.farPlane = 20.0f;
+	shadowCam.farPlane = 15.0f;
 	shadowCam.aspectRatio = 1.0f;
 
 	//Handles to OpenGL object are unsigned integers
@@ -193,6 +197,8 @@ int main() {
 		shader.setFloat("_Material.Kd", material.Kd);
 		shader.setFloat("_Material.Ks", material.Ks);
 		shader.setFloat("_Material.Shininess", material.Shininess);
+		shader.setFloat("_Shadow.minBias", shadow.minBias);
+		shader.setFloat("_Shadow.maxBias", shadow.maxBias);
 
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
@@ -261,6 +267,8 @@ void drawUI(unsigned int shadowMap) {
 	}
 	if (ImGui::CollapsingHeader("Light")) {
 		ImGui::SliderFloat3("Direction", (float*)&lightDir, -1.0f, 1.0f);
+		ImGui::SliderFloat("Minimum Bias", &shadow.minBias, 0.001f, 0.5f);
+		ImGui::SliderFloat("Maximum Bias", &shadow.maxBias, 0.001f, 0.5f);
 	}
 	if (ImGui::CollapsingHeader("Gamma Correction")) {
 		ImGui::SliderFloat("Power", &gammaPower.Kp, 1.0f, 2.2f);

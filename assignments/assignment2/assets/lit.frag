@@ -13,6 +13,11 @@ in Surface{
 	uniform vec3 _LightColor = vec3(1.0); //White Light
 	uniform vec3 _AmbientColor = vec3(0.3, 0.4, 0.46);
 
+	struct Shadow {
+		float minBias; //Example values! 
+		float maxBias;
+	};
+	uniform Shadow _Shadow;
 
 	struct Material {
 		float Ka;  //Ambient coefficient (0-1)
@@ -35,15 +40,25 @@ in Surface{
 		//Convert from [-1,1] to [0,1]
 		sampleCoord = sampleCoord * 0.5 + 0.5;
 
-		float minBias = 0.005; //Example values! 
-		float maxBias = 0.015;
-		float bias = max(maxBias * (1.0 - dot(normal,toLight)),minBias);
+		float bias = max(_Shadow.maxBias * (1.0 - dot(normal,toLight)),_Shadow.minBias);
 
 		float myDepth = sampleCoord.z - bias; 
 
 		float shadowMapDepth = texture(shadowMap, sampleCoord.xy).r;
 		//step(a,b) returns 1.0 if a >= b, 0.0 otherwise
-		return step(shadowMapDepth,myDepth);
+		//return step(shadowMapDepth,myDepth);
+
+		float totalShadow = 0;
+		vec2 texelOffset = 1.0 /  textureSize(_ShadowMap,0);
+		for(int y = -1; y <=1; y++){
+			for(int x = -1; x <=1; x++){
+				vec2 uv = sampleCoord.xy + vec2(x * texelOffset.x, y * texelOffset.y);
+				totalShadow+=step(texture(_ShadowMap,uv).r,myDepth);
+			}
+		}
+		totalShadow/=9.0;
+
+		return totalShadow;
 	}
 
 
