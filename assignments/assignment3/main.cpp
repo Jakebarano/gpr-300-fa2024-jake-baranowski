@@ -55,6 +55,73 @@ struct gammaPower {
 	float Kp = 1.0;
 }gammaPower;
 
+class FrameBuffer
+{
+public:
+	FrameBuffer();
+	~FrameBuffer();
+
+	unsigned int fbo;
+	unsigned int width;
+	unsigned int height;
+	unsigned int colorBuffers[3];
+};
+
+FrameBuffer::FrameBuffer()
+{
+	width = 0;
+	height = 0;
+}
+
+FrameBuffer::~FrameBuffer()
+{
+
+}
+
+FrameBuffer createGBuffer(unsigned int fbo, unsigned int width, unsigned int height) {
+	FrameBuffer framebuffer;
+	framebuffer.width = width;
+	framebuffer.height = height;
+
+	glCreateFramebuffers(1, &framebuffer.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
+
+	int formats[3] = {
+		GL_RGB32F, //0 = World Position 
+		GL_RGB16F, //1 = World Normal
+		GL_RGB16F  //2 = Albedo
+	};
+	//Create 3 color textures
+	for (size_t i = 0; i < 3; i++)
+	{
+		glGenTextures(1, &framebuffer.colorBuffers[i]);
+		glBindTexture(GL_TEXTURE_2D, framebuffer.colorBuffers[i]);
+		glTexStorage2D(GL_TEXTURE_2D, 1, formats[i], width, height);
+		//Clamp to border so we don't wrap when sampling for post processing
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		//Attach each texture to a different slot.
+	//GL_COLOR_ATTACHMENT0 + 1 = GL_COLOR_ATTACHMENT1, etc
+		glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, framebuffer.colorBuffers[i], 0);
+	}
+	//Explicitly tell OpenGL which color attachments we will draw to
+	const GLenum drawBuffers[3] = {
+			GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2
+	};
+	glDrawBuffers(3, drawBuffers);
+	//TODO: Add texture2D depth buffer
+	//TODO: Check for completeness
+
+	//Clean up global state
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	return framebuffer;
+}
+
+
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 3", screenWidth, screenHeight);
