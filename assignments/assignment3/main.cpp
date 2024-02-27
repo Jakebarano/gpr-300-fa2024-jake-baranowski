@@ -17,9 +17,12 @@
 #include <ew/texture.h>
 #include <ew/procGen.h>
 
+//jb namespace includes
+#include <jb/frameBuffer.h>
+
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 GLFWwindow* initWindow(const char* title, int width, int height);
-void drawUI(unsigned int shadowMap);
+void drawUI(unsigned int shadowMap, jb::FrameBuffer gBuffer);
 
 //Global state
 int screenWidth = 1080;
@@ -55,31 +58,9 @@ struct gammaPower {
 	float Kp = 1.0;
 }gammaPower;
 
-class FrameBuffer
-{
-public:
-	FrameBuffer();
-	~FrameBuffer();
 
-	unsigned int fbo;
-	unsigned int width;
-	unsigned int height;
-	unsigned int colorBuffers[3];
-};
-
-FrameBuffer::FrameBuffer()
-{
-	width = 0;
-	height = 0;
-}
-
-FrameBuffer::~FrameBuffer()
-{
-
-}
-
-FrameBuffer createGBuffer(unsigned int fbo, unsigned int width, unsigned int height) {
-	FrameBuffer framebuffer;
+jb::FrameBuffer createGBuffer(unsigned int width, unsigned int height) {
+	jb::FrameBuffer framebuffer;
 	framebuffer.width = width;
 	framebuffer.height = height;
 
@@ -111,8 +92,21 @@ FrameBuffer createGBuffer(unsigned int fbo, unsigned int width, unsigned int hei
 			GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2
 	};
 	glDrawBuffers(3, drawBuffers);
-	//TODO: Add texture2D depth buffer
-	//TODO: Check for completeness
+	// texture2D depth buffer 4 GBuffer
+	
+	unsigned int gDepthBuffer;
+	glGenTextures(1, &gDepthBuffer);
+	glBindTexture(GL_TEXTURE_2D, gDepthBuffer);
+	//Create 16 bit depth buffer - must be same width/height of color buffer
+	glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, screenWidth, screenHeight);
+	//Attach to framebuffer (assuming FBO is bound)
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gDepthBuffer, 0);
+
+	//Checking for completeness
+	GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER); 
+	if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
+		printf("Framebuffer incomplete: %d", fboStatus);
+	}
 
 	//Clean up global state
 
@@ -122,12 +116,12 @@ FrameBuffer createGBuffer(unsigned int fbo, unsigned int width, unsigned int hei
 }
 
 
-
 int main() {
 	GLFWwindow* window = initWindow("Assignment 3", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 	ew::Shader shadowMapShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
+	ew::Shader geometryShader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag
 	ew::Shader Postprocess = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
 
@@ -154,7 +148,6 @@ int main() {
 
 	//Handles to OpenGL object are unsigned integers
 	GLuint brickTexture = ew::loadTexture("assets/Rock051_2K-JPG_Color.jpg"); //Stopped Right here (12/24pgs)
-
 
 	//Global OpenGL variables
 	glEnable(GL_CULL_FACE);
@@ -210,6 +203,9 @@ int main() {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
+	//Geometry Creation
+	unsigned int gFBO;
+	jb::FrameBuffer gBuffer = createGBuffer(screenWidth, screenHeight);
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -219,6 +215,8 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
+		//SHADOW PASS
+
 		glCullFace(GL_FRONT);
 
 		shadowCam.position = shadowCam.target - lightDir * 5.0f;
@@ -253,6 +251,27 @@ int main() {
 		glBindTextureUnit(0, brickTexture);
 		glBindTextureUnit(1, shadowMap);
 
+		//END OF SHADOW PASS
+		
+		//GEOMETRY PASS
+
+		glBindFramebuffer(GL_FRAMEBUFFER, gBuffer.fbo);
+		glViewport(0, 0, gBuffer.width, gBuffer.height);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
+		geometryShader.use();
+		shader.setInt("_MainTex", 0);
+		geometryShader.setMat4("_Model", monkeyTransform.modelMatrix());
+		geometryShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		monkeyModel.draw(); //Draws monkey model using current shader
+		geometryShader.setMat4("_Model", planeTransform.modelMatrix());
+		planeMesh.draw();
+
+		//END OF GEOMETRY PASS
+		
+		//LIGHTING PASS
+
 		shader.use();   
 
 		shader.setInt("_ShadowMap", 1);
@@ -279,6 +298,9 @@ int main() {
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, screenWidth, screenHeight);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//END OF LIGHTING PASS
+		
+		//POSTPROCESS PASS
 
 		Postprocess.use();
 		Postprocess.setFloat("_gammaPower.Kp", gammaPower.Kp);
@@ -288,8 +310,7 @@ int main() {
 
 		//6 vertices for quad, 3 for triangle
 		glDrawArrays(GL_TRIANGLES, 0, 3);
-		  
-		drawUI(shadowMap);
+		drawUI(shadowMap, gBuffer);
 
 		glfwSwapBuffers(window);
 	}
@@ -317,7 +338,7 @@ void toggleGammaCorrection()
 	}
 }
 
-void drawUI(unsigned int shadowMap) {
+void drawUI(unsigned int shadowMap, jb::FrameBuffer gBuffer) {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui::NewFrame();
@@ -352,6 +373,16 @@ void drawUI(unsigned int shadowMap) {
 	ImGui::Image((ImTextureID)shadowMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	ImGui::EndChild();
 	ImGui::End();
+
+	ImGui::Begin("GBuffers"); 
+	{
+		ImVec2 texSize = ImVec2(gBuffer.width / 4, gBuffer.height / 4);
+		for (size_t i = 0; i < 3; i++)
+		{
+			ImGui::Image((ImTextureID)gBuffer.colorBuffers[i], texSize, ImVec2(0, 1), ImVec2(1, 0));
+		}
+		ImGui::End();
+	}
 
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
