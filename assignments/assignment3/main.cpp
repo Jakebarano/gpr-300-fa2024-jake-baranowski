@@ -255,10 +255,10 @@ int main() {
 		
 		//GEOMETRY PASS
 
-		glBindFramebuffer(GL_FRAMEBUFFER, gBuffer.fbo);
-		glViewport(0, 0, gBuffer.width, gBuffer.height);
+		glBindFramebuffer(GL_FRAMEBUFFER, gBuffer.fbo); 
+		glViewport(0, 0, gBuffer.width, gBuffer.height); 
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 		
 		geometryShader.use();
 		shader.setInt("_MainTex", 0);

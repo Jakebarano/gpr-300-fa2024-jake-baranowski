@@ -13,8 +13,8 @@ uniform mat4 _ViewProjection; //Combined View->Projection Matrix
 
 out Surface{
 	vec3 WorldPos;
-	vec3 WorldNormal;
 	vec2 TexCoord;
+	vec3 WorldNormal;
 }vs_out;
 
 
