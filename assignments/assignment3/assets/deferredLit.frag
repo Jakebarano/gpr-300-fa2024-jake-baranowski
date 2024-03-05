@@ -6,10 +6,8 @@ in vec2 UV;
 	uniform layout(binding = 0) sampler2D _gPositions;
 	uniform layout(binding = 1) sampler2D _gNormals;  //used instead of Surface struct
 	uniform layout(binding = 2) sampler2D _gAlbedo;
+	uniform layout(binding = 3) sampler2D _shadowMap;
 
-
-
-	uniform sampler2D _MainTex; //2D texture sampler 
 	uniform vec3 _EyePos;
 	uniform vec3 _LightDirection;
 	uniform vec3 _LightColor = vec3(1.0); //White Light
@@ -30,18 +28,17 @@ in vec2 UV;
 	uniform Material _Material;
 
 	in vec4 LightSpacePos;
-	uniform sampler2D _ShadowMap; 
 
 	//Light Pointing straight down
 	vec3 toLight = -_LightDirection;
 
-	float calcShadow(sampler2D shadowMap, vec4 lightSpacePos, vec3 n){ //make normal variable input
+	float calcShadow(sampler2D shadowMap, vec4 lightSpacePos, vec3 norm){ //make normal variable input
 		//Homogeneous Clip space to NDC [-w,w] to [-1,1]
 		vec3 sampleCoord = lightSpacePos.xyz / lightSpacePos.w;
 		//Convert from [-1,1] to [0,1]
 		sampleCoord = sampleCoord * 0.5 + 0.5;
 
-		float bias = max(_Shadow.maxBias * (1.0 - dot(n,toLight)),_Shadow.minBias);
+		float bias = max(_Shadow.maxBias * (1.0 - dot(norm,toLight)),_Shadow.minBias);
 
 		float myDepth = sampleCoord.z - bias; 
 
@@ -50,16 +47,38 @@ in vec2 UV;
 		//return step(shadowMapDepth,myDepth);
 
 		float totalShadow = 0;
-		vec2 texelOffset = 1.0 /  textureSize(_ShadowMap,0);
+		vec2 texelOffset = 1.0 /  textureSize(shadowMap,0);
 		for(int y = -1; y <=1; y++){
 			for(int x = -1; x <=1; x++){
 				vec2 uv = sampleCoord.xy + vec2(x * texelOffset.x, y * texelOffset.y);
-				totalShadow+=step(texture(_ShadowMap,uv).r,myDepth);
+				totalShadow+=step(texture(shadowMap,uv).r,myDepth);
 			}
 		}
 		totalShadow/=9.0;
 
 		return totalShadow;
+	}
+
+	vec3 calculateLighting(vec3 normal, vec3 worldPos, vec3 albedo){
+
+		float diffuseFactor = max(dot(normal, toLight), 0.0);
+
+		vec3 toEye = normalize(_EyePos - worldPos); //Direction towards Eye
+
+		vec3 h = normalize(toLight + toEye); //Blinn-Phong uses half angle
+		float specularFactor = pow(max(dot(normal,h), 0.0), _Material.Shininess);
+
+		vec3 ambient = _AmbientColor * _Material.Ka;
+		float diffuse = _Material.Kd * diffuseFactor;
+		float specular = _Material.Ks * specularFactor;
+
+		float shadow = calcShadow(_shadowMap, LightSpacePos, normal); 
+
+		//Combination of specular and diffuse reflection
+		vec3 lightColor = ambient + ( diffuse + specular) * (1.0 - shadow);
+
+		return lightColor;
+
 	}
 
 void main(){
@@ -68,27 +87,9 @@ void main(){
 	vec3 worldPos = texture(_gPositions,UV).xyz;
 	vec3 albedo = texture(_gAlbedo,UV).xyz;
 
-	//turn into function
-//{
-	//Make sure fragment normal is still length 1 after interpolation.
-	float diffuseFactor = max(dot(normal, toLight), 0.0);
 
-	vec3 toEye = normalize(_EyePos - worldPos); //Direction towards Eye
+	vec3 lightColor = calculateLighting(normal, worldPos, albedo);
+	//vec3 objectColor = texture(_MainTex, albedo).rgb;
 
-	vec3 h = normalize(toLight + toEye); //Blinn-Phong uses half angle
-	float specularFactor = pow(max(dot(normal,h), 0.0), _Material.Shininess);
-
-	vec3 ambient = _AmbientColor * _Material.Ka;
-	float diffuse = _Material.Kd * diffuseFactor;
-	float specular = _Material.Ks * specularFactor;
-
-	float shadow = calcShadow(_ShadowMap, LightSpacePos, normal); 
-//{
-
-
-	//Combination of specular and diffuse reflection
-	vec3 lightColor = ambient + ( diffuse + specular) * (1.0 - shadow);
-	vec3 objectColor = texture(_MainTex, albedo).rgb;
-
-	FragColor = vec4(objectColor * lightColor, 1.0);
+	FragColor = vec4(albedo * lightColor, 1.0);
 }

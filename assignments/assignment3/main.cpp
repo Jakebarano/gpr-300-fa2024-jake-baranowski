@@ -123,9 +123,9 @@ int main() {
 	ew::Shader shadowMapShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Shader geometryShader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
 
-	ew::Shader LitShader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag   //ARCHIV
+	//ew::Shader LitShader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag   //ARCHIV
 
-	//ew::Shader deferredLitShader = ew::Shader("assets/deferredLit.vert", "assets/deferredLit.frag"); //Use instead of Lit
+	ew::Shader deferredLitShader = ew::Shader("assets/deferredLit.vert", "assets/deferredLit.frag"); //Use instead of Lit
 	ew::Shader Postprocess = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
 
 
@@ -259,7 +259,7 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 		
 		geometryShader.use();
-		LitShader.setInt("_MainTex", 0);
+		geometryShader.setInt("_MainTex", 0);
 		geometryShader.setMat4("_Model", monkeyTransform.modelMatrix());
 		geometryShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		monkeyModel.draw(); //Draws monkey model using current shader
@@ -272,29 +272,31 @@ int main() {
 
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		glViewport(0, 0, screenWidth, screenHeight);
-		glClearColor(0.6f, 0.8f, 0.92f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		deferredLitShader.use();
 
-		LitShader.use();   
+		deferredLitShader.setVec3("_EyePos", camera.position);
+		deferredLitShader.setVec3("_LightDirection", lightDir);
 
-		LitShader.setInt("_ShadowMap", 1);
-		LitShader.setInt("_MainTex", 0);  //Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
-		LitShader.setVec3("_EyePos", camera.position);
-		LitShader.setVec3("_LightDirection", lightDir);
+		deferredLitShader.setFloat("_Material.Ka", material.Ka);
+		deferredLitShader.setFloat("_Material.Kd", material.Kd);
+		deferredLitShader.setFloat("_Material.Ks", material.Ks);
+		deferredLitShader.setFloat("_Material.Shininess", material.Shininess);
+		deferredLitShader.setFloat("_Shadow.minBias", shadow.minBias);
+		deferredLitShader.setFloat("_Shadow.maxBias", shadow.maxBias);
 
-		LitShader.setFloat("_Material.Ka", material.Ka);
-		LitShader.setFloat("_Material.Kd", material.Kd);
-		LitShader.setFloat("_Material.Ks", material.Ks);
-		LitShader.setFloat("_Material.Shininess", material.Shininess);
-		LitShader.setFloat("_Shadow.minBias", shadow.minBias);
-		LitShader.setFloat("_Shadow.maxBias", shadow.maxBias);
+		deferredLitShader.setMat4("_Model", monkeyTransform.modelMatrix());
+		deferredLitShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		deferredLitShader.setMat4("_LightViewProj", lightViewProj);
 
-		LitShader.setMat4("_Model", monkeyTransform.modelMatrix());
-		LitShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		LitShader.setMat4("_LightViewProj", lightViewProj);
+		glBindTextureUnit(0, gBuffer.colorBuffers[0]);
+		glBindTextureUnit(1, gBuffer.colorBuffers[1]);
+		glBindTextureUnit(2, gBuffer.colorBuffers[2]);
+		glBindTextureUnit(3, shadowFBO);
+
+
 		monkeyModel.draw(); //Draws monkey model using current shader
-
-		LitShader.setMat4("_Model", planeTransform.modelMatrix());
+		deferredLitShader.setMat4("_Model", planeTransform.modelMatrix());
 
 		planeMesh.draw();
 
