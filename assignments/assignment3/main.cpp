@@ -122,7 +122,10 @@ int main() {
 
 	ew::Shader shadowMapShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Shader geometryShader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
-	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag
+
+	ew::Shader LitShader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag   //ARCHIV
+
+	//ew::Shader deferredLitShader = ew::Shader("assets/deferredLit.vert", "assets/deferredLit.frag"); //Use instead of Lit
 	ew::Shader Postprocess = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
 
 
@@ -240,11 +243,6 @@ int main() {
 		planeMesh.draw();
 
 		glCullFace(GL_BACK);
-
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-		glViewport(0, 0, screenWidth, screenHeight);
-		glClearColor(0.6f,0.8f,0.92f,1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
 		//monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0)); 
 		cameraController.move(window, &camera, deltaTime);
@@ -261,7 +259,7 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 		
 		geometryShader.use();
-		shader.setInt("_MainTex", 0);
+		LitShader.setInt("_MainTex", 0);
 		geometryShader.setMat4("_Model", monkeyTransform.modelMatrix());
 		geometryShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		monkeyModel.draw(); //Draws monkey model using current shader
@@ -272,26 +270,31 @@ int main() {
 		
 		//LIGHTING PASS
 
-		shader.use();   
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		glViewport(0, 0, screenWidth, screenHeight);
+		glClearColor(0.6f, 0.8f, 0.92f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		shader.setInt("_ShadowMap", 1);
-		shader.setInt("_MainTex", 0);  //Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
-		shader.setVec3("_EyePos", camera.position);
-		shader.setVec3("_LightDirection", lightDir);
+		LitShader.use();   
 
-		shader.setFloat("_Material.Ka", material.Ka);
-		shader.setFloat("_Material.Kd", material.Kd);
-		shader.setFloat("_Material.Ks", material.Ks);
-		shader.setFloat("_Material.Shininess", material.Shininess);
-		shader.setFloat("_Shadow.minBias", shadow.minBias);
-		shader.setFloat("_Shadow.maxBias", shadow.maxBias);
+		LitShader.setInt("_ShadowMap", 1);
+		LitShader.setInt("_MainTex", 0);  //Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
+		LitShader.setVec3("_EyePos", camera.position);
+		LitShader.setVec3("_LightDirection", lightDir);
 
-		shader.setMat4("_Model", monkeyTransform.modelMatrix());
-		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		shader.setMat4("_LightViewProj", lightViewProj);
+		LitShader.setFloat("_Material.Ka", material.Ka);
+		LitShader.setFloat("_Material.Kd", material.Kd);
+		LitShader.setFloat("_Material.Ks", material.Ks);
+		LitShader.setFloat("_Material.Shininess", material.Shininess);
+		LitShader.setFloat("_Shadow.minBias", shadow.minBias);
+		LitShader.setFloat("_Shadow.maxBias", shadow.maxBias);
+
+		LitShader.setMat4("_Model", monkeyTransform.modelMatrix());
+		LitShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		LitShader.setMat4("_LightViewProj", lightViewProj);
 		monkeyModel.draw(); //Draws monkey model using current shader
 
-		shader.setMat4("_Model", planeTransform.modelMatrix());
+		LitShader.setMat4("_Model", planeTransform.modelMatrix());
 
 		planeMesh.draw();
 
