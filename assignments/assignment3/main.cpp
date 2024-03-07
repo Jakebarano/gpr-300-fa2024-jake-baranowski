@@ -58,6 +58,16 @@ struct gammaPower {
 	float Kp = 1.0;
 }gammaPower;
 
+struct PointLight {
+	glm::vec3 position;
+	float radius;
+	glm::vec4 color;
+};
+
+const int MAX_POINT_LIGHTS = 64;
+PointLight pointLights[MAX_POINT_LIGHTS];
+
+
 
 jb::FrameBuffer createGBuffer(unsigned int width, unsigned int height) {
 	jb::FrameBuffer framebuffer;
@@ -176,6 +186,11 @@ int main() {
 	//Attach to framebuffer (assuming FBO is bound)
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffer, 0);
 
+
+	//MainVAO
+	unsigned int mainVAO;
+	glCreateVertexArrays(1, &mainVAO);
+
 	//DummyVAO 
 	unsigned int dummyVAO;
 	glCreateVertexArrays(1, &dummyVAO);
@@ -285,20 +300,17 @@ int main() {
 		deferredLitShader.setFloat("_Shadow.minBias", shadow.minBias);
 		deferredLitShader.setFloat("_Shadow.maxBias", shadow.maxBias);
 
-		deferredLitShader.setMat4("_Model", monkeyTransform.modelMatrix());
-		deferredLitShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		//deferredLitShader.setMat4("_Model", monkeyTransform.modelMatrix());
+		//deferredLitShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		deferredLitShader.setMat4("_LightViewProj", lightViewProj);
 
 		glBindTextureUnit(0, gBuffer.colorBuffers[0]);
 		glBindTextureUnit(1, gBuffer.colorBuffers[1]);
 		glBindTextureUnit(2, gBuffer.colorBuffers[2]);
-		glBindTextureUnit(3, shadowFBO);
+		glBindTextureUnit(3, shadowMap);
 
-
-		monkeyModel.draw(); //Draws monkey model using current shader
-		deferredLitShader.setMat4("_Model", planeTransform.modelMatrix());
-
-		planeMesh.draw();
+		glBindVertexArray(mainVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, screenWidth, screenHeight);

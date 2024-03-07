@@ -12,6 +12,7 @@ in vec2 UV;
 	uniform vec3 _LightDirection;
 	uniform vec3 _LightColor = vec3(1.0); //White Light
 	uniform vec3 _AmbientColor = vec3(0.3, 0.4, 0.46);
+	uniform mat4 _LightViewProj; //view + projection of light source camera
 
 	struct Shadow {
 		float minBias; //Example values! 
@@ -26,8 +27,6 @@ in vec2 UV;
 		float Shininess; //Affects size of specular highlight
 	};
 	uniform Material _Material;
-
-	in vec4 LightSpacePos;
 
 	//Light Pointing straight down
 	vec3 toLight = -_LightDirection;
@@ -59,7 +58,20 @@ in vec2 UV;
 		return totalShadow;
 	}
 
+	struct PointLight{
+		vec3 position;
+		float radius;
+		vec4 color;
+	};
+	#define MAX_POINT_LIGHTS 64
+	uniform PointLight _PointLights[MAX_POINT_LIGHTS];
+
+
+
+
 	vec3 calculateLighting(vec3 normal, vec3 worldPos, vec3 albedo){
+
+	vec4 lightSpacePos = _LightViewProj * vec4(worldPos, 1.0f);
 
 		float diffuseFactor = max(dot(normal, toLight), 0.0);
 
@@ -72,7 +84,7 @@ in vec2 UV;
 		float diffuse = _Material.Kd * diffuseFactor;
 		float specular = _Material.Ks * specularFactor;
 
-		float shadow = calcShadow(_shadowMap, LightSpacePos, normal); 
+		float shadow = calcShadow(_shadowMap, lightSpacePos, normal); 
 
 		//Combination of specular and diffuse reflection
 		vec3 lightColor = ambient + ( diffuse + specular) * (1.0 - shadow);
