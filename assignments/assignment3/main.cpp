@@ -20,6 +20,11 @@
 //jb namespace includes
 #include <jb/frameBuffer.h>
 
+//random number includes
+
+#include <time.h>
+#include <iostream>
+
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 GLFWwindow* initWindow(const char* title, int width, int height);
 void drawUI(unsigned int shadowMap, jb::FrameBuffer gBuffer);
@@ -66,6 +71,46 @@ struct PointLight {
 
 const int MAX_POINT_LIGHTS = 64;
 PointLight pointLights[MAX_POINT_LIGHTS];
+const int ROW_MAX = 5;
+const int COL_MAX = 5;
+//Intialize indivdual variables
+
+void setLightVars() 
+{
+	int x = -4;
+	int z = -4;
+	int index = 0;
+
+	for (int j = 0; j < MAX_POINT_LIGHTS; j++)
+	{
+		float r = (float)rand() / RAND_MAX;
+		float g = (float)rand() / RAND_MAX;
+		float b = (float)rand() / RAND_MAX;
+
+		pointLights[j].color += glm::vec4(r, g, b, 1.0f); //Set up random light value.
+		pointLights[j].radius = 2.0f;
+	}
+
+	//set grid positions
+	for (x; x < ROW_MAX; ++x)
+	{
+		if (x == 0)
+		{
+			x++;
+		}
+		for (z; z < COL_MAX; ++z)
+		{
+			if (z == 0)
+			{
+				z++;
+			}
+			pointLights[index].position = glm::vec3(x , 0.2f, z);
+			index++;
+		}
+		z = -5;
+	}
+}
+
 
 
 
@@ -127,6 +172,9 @@ jb::FrameBuffer createGBuffer(unsigned int width, unsigned int height) {
 
 
 int main() {
+
+	srand((unsigned)time(NULL));
+
 	GLFWwindow* window = initWindow("Assignment 3", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
@@ -225,6 +273,10 @@ int main() {
 	unsigned int gFBO;
 	jb::FrameBuffer gBuffer = createGBuffer(screenWidth, screenHeight);
 
+	//Light initialization
+
+	setLightVars();
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
@@ -300,6 +352,14 @@ int main() {
 		deferredLitShader.setFloat("_Shadow.minBias", shadow.minBias);
 		deferredLitShader.setFloat("_Shadow.maxBias", shadow.maxBias);
 
+		for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
+			//Creates prefix "_PointLights[0]." etc
+			std::string prefix = "_PointLights[" + std::to_string(i) + "].";
+			deferredLitShader.setVec3(prefix + "position", pointLights[i].position);
+			deferredLitShader.setFloat(prefix + "radius", pointLights[i].radius);
+			deferredLitShader.setVec4(prefix + "color", pointLights[i].color);
+		}
+
 		//deferredLitShader.setMat4("_Model", monkeyTransform.modelMatrix());
 		//deferredLitShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		deferredLitShader.setMat4("_LightViewProj", lightViewProj);
@@ -316,6 +376,13 @@ int main() {
 		glViewport(0, 0, screenWidth, screenHeight);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		//END OF LIGHTING PASS
+
+		//BLIT SOME SHIT
+	
+		//TODO: Render and blit orbs for each point light.
+		
+
+		//END BLITS
 		
 		//POSTPROCESS PASS
 

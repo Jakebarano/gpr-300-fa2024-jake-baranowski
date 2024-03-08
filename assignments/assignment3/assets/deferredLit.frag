@@ -58,18 +58,50 @@ in vec2 UV;
 		return totalShadow;
 	}
 
+	//Point Light Stuff
+	//WIP
+
+	#define MAX_POINT_LIGHTS 64
+
 	struct PointLight{
 		vec3 position;
 		float radius;
 		vec4 color;
 	};
-	#define MAX_POINT_LIGHTS 64
 	uniform PointLight _PointLights[MAX_POINT_LIGHTS];
+	
+
+	float attenuateExponential(float distance, float radius){
+	float i = clamp(1.0 - pow(distance/radius,4.0),0.0,1.0);
+	return i * i;
+	
+}
+
+	vec3 calcPointLight(PointLight light,vec3 normal, vec3 worldPos){
+		vec3 diff = light.position - worldPos;
+		//Direction toward light position
+		vec3 toLight = normalize(diff);
+		//TODO: Usual blinn-phong calculations for diffuse + specular
+		float diffuseFactor = max(dot(normal, toLight), 0.0);
+
+		vec3 toEye = normalize(_EyePos - worldPos); //Direction towards Eye
+
+		vec3 h = normalize(toLight + toEye); //Blinn-Phong uses half angle
+		float specularFactor = pow(max(dot(normal,h), 0.0), _Material.Shininess);
+
+		float diffuse = _Material.Kd * diffuseFactor;
+		float specular = _Material.Ks * specularFactor;
+
+		vec3 lightColor = (diffuse + specular) * light.color.rgb;
+		//Attenuation
+		float d = length(diff); //Distance to light
+		lightColor *= attenuateExponential(d,light.radius); //See below for attenuation options
+
+		return lightColor;
+}
 
 
-
-
-	vec3 calculateLighting(vec3 normal, vec3 worldPos, vec3 albedo){
+	vec3 calculateLighting(vec3 normal, vec3 worldPos){
 
 	vec4 lightSpacePos = _LightViewProj * vec4(worldPos, 1.0f);
 
@@ -97,11 +129,18 @@ void main(){
 
 	vec3 normal = texture(_gNormals,UV).xyz;
 	vec3 worldPos = texture(_gPositions,UV).xyz;
+	vec3 totalLight = vec3(0);
+	totalLight += calculateLighting(normal, worldPos);
+
+	for(int i = 0; i < MAX_POINT_LIGHTS; i++){
+		totalLight+=calcPointLight(_PointLights[i],normal, worldPos);
+	}
+
 	vec3 albedo = texture(_gAlbedo,UV).xyz;
 
 
-	vec3 lightColor = calculateLighting(normal, worldPos, albedo);
+	//vec3 lightColor = calculateLighting(normal, worldPos, albedo);
 	//vec3 objectColor = texture(_MainTex, albedo).rgb;
 
-	FragColor = vec4(albedo * lightColor, 1.0);
+	FragColor = vec4(albedo * totalLight, 0);
 }
