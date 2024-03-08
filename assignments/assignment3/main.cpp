@@ -77,8 +77,8 @@ const int COL_MAX = 5;
 
 void setLightVars() 
 {
-	int x = -4;
-	int z = -4;
+	int x;
+	int z;
 	int index = 0;
 
 	for (int j = 0; j < MAX_POINT_LIGHTS; j++)
@@ -92,22 +92,22 @@ void setLightVars()
 	}
 
 	//set grid positions
-	for (x; x < ROW_MAX; ++x)
+	for (x = -4; x <= ROW_MAX; x++)
 	{
 		if (x == 0)
 		{
 			x++;
 		}
-		for (z; z < COL_MAX; ++z)
+		for (z = -4; z < COL_MAX; z++)
 		{
 			if (z == 0)
 			{
 				z++;
 			}
-			pointLights[index].position = glm::vec3(x , 0.2f, z);
+
+			pointLights[index].position = glm::vec3(z , -0.2f, x);
 			index++;
 		}
-		z = -5;
 	}
 }
 
@@ -180,15 +180,16 @@ int main() {
 
 	ew::Shader shadowMapShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Shader geometryShader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
-
-	//ew::Shader LitShader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag   //ARCHIV
-
 	ew::Shader deferredLitShader = ew::Shader("assets/deferredLit.vert", "assets/deferredLit.frag"); //Use instead of Lit
+	ew::Shader lightOrbShader = ew::Shader("assets/lightOrb.vert", "assets/lightOrb.frag");  //For Blitting
 	ew::Shader Postprocess = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
-
+	
+	//ew::Shader LitShader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag   //ARCHIVED
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj"); //load the rock Monkey
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
+	ew::Mesh sphereMesh = ew::Mesh(ew::createSphere(1.0f, 8));
+
 	planeTransform.position = glm::vec3(0, -1.1f, 0);
 
 	//Main Camera
@@ -380,9 +381,30 @@ int main() {
 		//BLIT SOME SHIT
 	
 		//TODO: Render and blit orbs for each point light.
-		
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.fbo); //Read from gBuffer 
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo); //Write to current fbo
+		glBlitFramebuffer(0, 0, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+		//Draw all light orbs
+		lightOrbShader.use();
+		lightOrbShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+		{
+			glm::mat4 m = glm::mat4(1.0f);
+			m = glm::translate(m, pointLights[i].position);
+			m = glm::scale(m, glm::vec3(0.2f)); //Whatever radius you want
+
+			lightOrbShader.setMat4("_Model", m);
+			lightOrbShader.setVec3("_Color", pointLights[i].color);
+			sphereMesh.draw();
+		}
+
 
 		//END BLITS
+		 
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, screenWidth, screenHeight); 
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 		
 		//POSTPROCESS PASS
 
