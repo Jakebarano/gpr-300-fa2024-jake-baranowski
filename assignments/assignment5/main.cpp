@@ -175,7 +175,7 @@ int main() {
 
 	srand((unsigned)time(NULL));
 
-	GLFWwindow* window = initWindow("Assignment 4", screenWidth, screenHeight);
+	GLFWwindow* window = initWindow("Assignment 5", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 	ew::Shader shadowMapShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
