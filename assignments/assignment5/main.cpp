@@ -19,6 +19,7 @@
 
 //jb namespace includes
 #include <jb/frameBuffer.h>
+#include <jb/transform.h>
 
 //random number includes
 
@@ -170,6 +171,34 @@ jb::FrameBuffer createGBuffer(unsigned int width, unsigned int height) {
 	return framebuffer;
 }
 
+//ANIMATIONS Initialization
+
+struct Node {
+	glm::mat4 localTransform;
+	glm::mat4 globalTransform;
+	Node* parent;
+	Node** children;
+	unsigned int numChildren;
+};
+
+void SolveFKRecursive(Node node) {
+
+	if (node.parent == nullptr)
+	{
+		node.globalTransform = node.localTransform;
+	}
+	else
+	{
+		node.globalTransform = node.parent->globalTransform * node.localTransform;
+
+		for (int i = 0; i < node.numChildren; i++)
+		{
+			Node child = *(node.children[i]);
+			SolveFKRecursive(child);
+		}
+	}
+}
+
 
 int main() {
 
@@ -275,7 +304,6 @@ int main() {
 	jb::FrameBuffer gBuffer = createGBuffer(screenWidth, screenHeight);
 
 	//Light initialization
-
 	setLightVars();
 
 	while (!glfwWindowShouldClose(window)) {
