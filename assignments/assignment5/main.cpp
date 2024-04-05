@@ -7,6 +7,7 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+#include <vector>
 
 //assignment includes
 #include <ew/shader.h>
@@ -174,29 +175,52 @@ jb::FrameBuffer createGBuffer(unsigned int width, unsigned int height) {
 //ANIMATIONS Initialization
 
 struct Node {
-	glm::mat4 localTransform;
+	jb::Transform localTransform;
 	glm::mat4 globalTransform;
 	Node* parent;
-	Node** children;
-	unsigned int numChildren;
+	std::vector<Node*> children;
 };
 
-void SolveFKRecursive(Node node) {
 
-	if (node.parent == nullptr)
+void SolveFKRecursive(Node* node) {
+
+	if (node->parent == nullptr)
 	{
-		node.globalTransform = node.localTransform;
+		node->globalTransform = node->localTransform.modelMatrix();
 	}
 	else
 	{
-		node.globalTransform = node.parent->globalTransform * node.localTransform;
-
-		for (int i = 0; i < node.numChildren; i++)
-		{
-			Node child = *(node.children[i]);
-			SolveFKRecursive(child);
-		}
+		node->globalTransform = node->parent->globalTransform * node->localTransform.modelMatrix();
 	}
+
+	for (int i = 0; i < node->children.size(); i++)
+	{
+		Node* child = node->children[i];
+		SolveFKRecursive(child);
+	}
+}
+
+ Node torso;
+ Node shoulderL;
+ Node armL;
+ Node wristL;
+
+
+void SetupHierarchy()
+{
+	torso.children.push_back(&shoulderL);
+	torso.children.push_back(&armL);
+	torso.children.push_back(&wristL);
+
+	shoulderL.children.push_back(&armL);
+	shoulderL.children.push_back(&wristL);
+
+	armL.children.push_back(&wristL);
+
+
+	shoulderL.parent = &torso;
+	armL.parent = &shoulderL;
+	wristL.parent = &armL;
 }
 
 
@@ -220,6 +244,7 @@ int main() {
 	ew::Mesh sphereMesh = ew::Mesh(ew::createSphere(1.0f, 8));
 
 	planeTransform.position = glm::vec3(0, -1.1f, 0);
+
 
 	//Main Camera
 
@@ -305,6 +330,11 @@ int main() {
 
 	//Light initialization
 	setLightVars();
+
+
+	//Organize body
+
+
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
