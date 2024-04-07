@@ -20,8 +20,7 @@
 
 //jb namespace includes
 #include <jb/frameBuffer.h>
-#include <jb/transform.h>
-
+#include <jb/transformNode.h>
 //random number includes
 
 #include <time.h>
@@ -175,7 +174,7 @@ jb::FrameBuffer createGBuffer(unsigned int width, unsigned int height) {
 //ANIMATIONS Initialization
 
 struct Node {  //NOTE TO SELF MAKE A FUNCTION THAT CLEARS AND DELETES ALL POINTERS
-	jb::Transform localTransform;
+	ew::Transform localTransform;
 	glm::mat4 globalTransform;
 	Node* parent;
 	std::vector<Node*> children;
@@ -200,80 +199,95 @@ void SolveFKRecursive(Node* node) {
 	}
 }
 
- Node torso;
- Node shoulderL;
- Node armL;
- Node wristL;
+//Nodes
+ Node* torso = new Node;
+ Node* shoulderL = new Node;
+ Node* armL = new Node;
+ Node* wristL = new Node;
+
+//Transforms
+ //jb::Transform monkeyTransform1;
+ //jb::Transform monkeyTransform2;
+ //jb::Transform monkeyTransform3;
+ //jb::Transform monkeyTransform4;
+ //jb::Transform monkeyTransform5;
+ //jb::Transform monkeyTransform6;
 
 
-void SetupHierarchy()
-{
+//void SetupHierarchy()
+//{
+//
+//	//TODO: LINK ALL THE NODES WITH TRANSFORMS
+//	torso->localTransform = monkeyTransform;
+//	shoulderL->localTransform = monkeyTransform1;
+//	armL->localTransform = monkeyTransform2;
+//	wristL->localTransform = monkeyTransform3;
+//
+//	//Adding all the Stuff together.
+//	torso->children.push_back(shoulderL);
+//	torso->children.push_back(armL);
+//	torso->children.push_back(wristL);
+//
+//	shoulderL->children.push_back(armL);
+//	shoulderL->children.push_back(wristL);
+//
+//	armL->children.push_back(wristL);
+//
+//
+//	shoulderL->parent = torso;
+//	armL->parent = shoulderL;
+//	wristL->parent = armL;
+//}
 
-	//TODO: LINK ALL THE NODES WITH TRANSFORMS
 
-	torso.children.push_back(&shoulderL);
-	torso.children.push_back(&armL);
-	torso.children.push_back(&wristL);
-
-	shoulderL.children.push_back(&armL);
-	shoulderL.children.push_back(&wristL);
-
-	armL.children.push_back(&wristL);
-
-
-	shoulderL.parent = &torso;
-	armL.parent = &shoulderL;
-	wristL.parent = &armL;
-}
-
-jb::Transform monkeyTransform1;
-jb::Transform monkeyTransform2;
-jb::Transform monkeyTransform3;
-jb::Transform monkeyTransform4;
-jb::Transform monkeyTransform5;
-jb::Transform monkeyTransform6;
-
-void loadMonkeys(ew::Shader shader)
-{
-
-	ew::Model monkeyModelOne = ew::Model("assets/suzanne.obj");
-
-	ew::Model monkeyModelTwo = ew::Model("assets/suzanne.obj"); //commented out for now may need seperate models for animation.
-	//ew::Model monkeyModelThree = ew::Model("assets/suzanne.obj");
-
-	//Right
-	monkeyTransform1.position = glm::vec3(1.3f, 0, 0);
-	monkeyTransform1.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-	shader.setMat4("_Model", monkeyTransform1.modelMatrix());
-	monkeyModelOne.draw();
-
-	monkeyTransform2.position = glm::vec3(1.3f, -0.5f, 0);
-	monkeyTransform2.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-	shader.setMat4("_Model", monkeyTransform2.modelMatrix());
-	monkeyModelOne.draw();
-
-	monkeyTransform3.position = glm::vec3(1.3f, -1.0f, 0);
-	monkeyTransform3.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-	shader.setMat4("_Model", monkeyTransform3.modelMatrix());
-	monkeyModelOne.draw();
-
-	//Left
-
-	monkeyTransform4.position = glm::vec3(-1.3f, 0, 0);
-	monkeyTransform4.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-	shader.setMat4("_Model", monkeyTransform4.modelMatrix());
-	monkeyModelOne.draw();
-
-	monkeyTransform5.position = glm::vec3(-1.3f, -0.5f, 0);
-	monkeyTransform5.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-	shader.setMat4("_Model", monkeyTransform5.modelMatrix());
-	monkeyModelOne.draw();
-
-	monkeyTransform6.position = glm::vec3(-1.3f, -1.0f, 0);
-	monkeyTransform6.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-	shader.setMat4("_Model", monkeyTransform6.modelMatrix());
-	monkeyModelOne.draw();
-}
+//void fuckingHell()
+//{
+//	monkeyTransform1.position = glm::vec3(1.3f, 0, 0);
+//	monkeyTransform1.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+//
+//	monkeyTransform2.position = glm::vec3(1.3f, -0.5f, 0);
+//	monkeyTransform2.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+//
+//	monkeyTransform3.position = glm::vec3(1.3f, -1.0f, 0);
+//	monkeyTransform3.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+//
+//	monkeyTransform4.position = glm::vec3(-1.3f, 0, 0);
+//	monkeyTransform4.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+//
+//	monkeyTransform5.position = glm::vec3(-1.3f, -0.5f, 0);
+//	monkeyTransform5.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+//
+//	monkeyTransform6.position = glm::vec3(-1.3f, -1.0f, 0);
+//	monkeyTransform6.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+//
+//}
+//void loadMonkeys(ew::Shader shader)
+//{
+//
+//	ew::Model monkeyModelOne = ew::Model("assets/suzanne.obj");
+//
+//	//Right
+//	shader.setMat4("_Model", monkeyTransform1.modelMatrix());
+//	monkeyModelOne.draw();
+//
+//
+//	shader.setMat4("_Model", monkeyTransform2.modelMatrix());
+//	monkeyModelOne.draw();
+//
+//	shader.setMat4("_Model", monkeyTransform3.modelMatrix());
+//	monkeyModelOne.draw();
+//
+//	//Left
+//
+//	shader.setMat4("_Model", monkeyTransform4.modelMatrix());
+//	monkeyModelOne.draw();
+//
+//	shader.setMat4("_Model", monkeyTransform5.modelMatrix());
+//	monkeyModelOne.draw();
+//
+//	shader.setMat4("_Model", monkeyTransform6.modelMatrix());
+//	monkeyModelOne.draw();
+//}
 
 
 int main() {
@@ -385,7 +399,7 @@ int main() {
 
 
 	//Organize body
-
+	//SetupHierarchy();
 
 
 	while (!glfwWindowShouldClose(window)) {
@@ -415,16 +429,16 @@ int main() {
 		shadowMapShader.setMat4("_ViewProjection", lightViewProj);
 		shadowMapShader.setMat4("_Model", monkeyTransform.modelMatrix());
 
-		monkeyModel.draw();
+		monkeyModel.draw(); //Big Monkey/Torso
 
-		loadMonkeys(shadowMapShader);
+		//loadMonkeys(shadowMapShader); //Loads Models of each monkey joints
 
 		shadowMapShader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
 
 		glCullFace(GL_BACK);
 	
-		//monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0)); 
+		/*monkeyTransform.rotation = glm::rotate(torso->globalTransform, deltaTime, glm::vec3(0.0, 1.0, 0.0)); */
 		cameraController.move(window, &camera, deltaTime);
 		glBindTextureUnit(0, brickTexture);
 		glBindTextureUnit(1, shadowMap);
@@ -444,7 +458,9 @@ int main() {
 		geometryShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		monkeyModel.draw(); //Draws monkey model using current shader
 
-		loadMonkeys(geometryShader);
+		
+		//loadMonkeys(geometryShader);
+		SolveFKRecursive(wristL);
 		geometryShader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
 
