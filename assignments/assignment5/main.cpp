@@ -174,7 +174,7 @@ jb::FrameBuffer createGBuffer(unsigned int width, unsigned int height) {
 
 //ANIMATIONS Initialization
 
-struct Node {
+struct Node {  //NOTE TO SELF MAKE A FUNCTION THAT CLEARS AND DELETES ALL POINTERS
 	jb::Transform localTransform;
 	glm::mat4 globalTransform;
 	Node* parent;
@@ -208,6 +208,9 @@ void SolveFKRecursive(Node* node) {
 
 void SetupHierarchy()
 {
+
+	//TODO: LINK ALL THE NODES WITH TRANSFORMS
+
 	torso.children.push_back(&shoulderL);
 	torso.children.push_back(&armL);
 	torso.children.push_back(&wristL);
@@ -221,6 +224,55 @@ void SetupHierarchy()
 	shoulderL.parent = &torso;
 	armL.parent = &shoulderL;
 	wristL.parent = &armL;
+}
+
+jb::Transform monkeyTransform1;
+jb::Transform monkeyTransform2;
+jb::Transform monkeyTransform3;
+jb::Transform monkeyTransform4;
+jb::Transform monkeyTransform5;
+jb::Transform monkeyTransform6;
+
+void loadMonkeys(ew::Shader shader)
+{
+
+	ew::Model monkeyModelOne = ew::Model("assets/suzanne.obj");
+
+	ew::Model monkeyModelTwo = ew::Model("assets/suzanne.obj"); //commented out for now may need seperate models for animation.
+	//ew::Model monkeyModelThree = ew::Model("assets/suzanne.obj");
+
+	//Right
+	monkeyTransform1.position = glm::vec3(1.3f, 0, 0);
+	monkeyTransform1.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+	shader.setMat4("_Model", monkeyTransform1.modelMatrix());
+	monkeyModelOne.draw();
+
+	monkeyTransform2.position = glm::vec3(1.3f, -0.5f, 0);
+	monkeyTransform2.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+	shader.setMat4("_Model", monkeyTransform2.modelMatrix());
+	monkeyModelOne.draw();
+
+	monkeyTransform3.position = glm::vec3(1.3f, -1.0f, 0);
+	monkeyTransform3.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+	shader.setMat4("_Model", monkeyTransform3.modelMatrix());
+	monkeyModelOne.draw();
+
+	//Left
+
+	monkeyTransform4.position = glm::vec3(-1.3f, 0, 0);
+	monkeyTransform4.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+	shader.setMat4("_Model", monkeyTransform4.modelMatrix());
+	monkeyModelOne.draw();
+
+	monkeyTransform5.position = glm::vec3(-1.3f, -0.5f, 0);
+	monkeyTransform5.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+	shader.setMat4("_Model", monkeyTransform5.modelMatrix());
+	monkeyModelOne.draw();
+
+	monkeyTransform6.position = glm::vec3(-1.3f, -1.0f, 0);
+	monkeyTransform6.scale = glm::vec3(0.25f, 0.25f, 0.25f);
+	shader.setMat4("_Model", monkeyTransform6.modelMatrix());
+	monkeyModelOne.draw();
 }
 
 
@@ -243,7 +295,7 @@ int main() {
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 	ew::Mesh sphereMesh = ew::Mesh(ew::createSphere(1.0f, 8));
 
-	planeTransform.position = glm::vec3(0, -1.1f, 0);
+	planeTransform.position = glm::vec3(0, -1.4f, 0);
 
 
 	//Main Camera
@@ -365,6 +417,8 @@ int main() {
 
 		monkeyModel.draw();
 
+		loadMonkeys(shadowMapShader);
+
 		shadowMapShader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
 
@@ -389,6 +443,8 @@ int main() {
 		geometryShader.setMat4("_Model", monkeyTransform.modelMatrix());
 		geometryShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		monkeyModel.draw(); //Draws monkey model using current shader
+
+		loadMonkeys(geometryShader);
 		geometryShader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
 

@@ -10,8 +10,6 @@
 
 namespace jb {
 	struct Transform {
-
-		Transform* parent;
 		 
 		glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
 		glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
@@ -24,6 +22,9 @@ namespace jb {
 			m = glm::scale(m, scale);
 			return m;
 		}
+
+
+		Transform* parent;
 
 		void setParent(Transform* t) 
 		{
