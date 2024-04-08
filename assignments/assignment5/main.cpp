@@ -7,7 +7,6 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-#include <vector>
 
 //assignment includes
 #include <ew/shader.h>
@@ -18,39 +17,27 @@
 #include <ew/texture.h>
 #include <ew/procGen.h>
 
-//jb namespace includes
-#include <jb/frameBuffer.h>
 #include <jb/transformNode.h>
-//random number includes
 
-#include <time.h>
-#include <iostream>
+using namespace jb;
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 GLFWwindow* initWindow(const char* title, int width, int height);
-void drawUI(unsigned int shadowMap, jb::FrameBuffer gBuffer);
+void drawUI();
 
 //Global state
 int screenWidth = 1080;
 int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
-bool GammaCorrectionOn = false; 
 
 //ew objects
+
 ew::Camera camera;
-ew::Transform monkeyTransform;
-ew::Transform planeTransform;
 ew::CameraController cameraController;
 
-ew::Camera shadowCam;
-
-//light variables
-glm::vec3 lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
-struct Shadow {
-	float minBias = 0.0015;
-	float maxBias = 0.005;
-}shadow;
+jb::TransformNode monkeyTransform;
+ew::Transform planeTransform;
 
 //Material Struct
 struct Material {
@@ -60,346 +47,71 @@ struct Material {
 	float Shininess = 128;
 }material;
 
-struct gammaPower {
-	float Kp = 1.0;
-}gammaPower;
+jb::Hierarchy hierarchy;
 
-struct PointLight {
-	glm::vec3 position;
-	float radius;
-	glm::vec4 color;
-};
-
-const int MAX_POINT_LIGHTS = 64;
-PointLight pointLights[MAX_POINT_LIGHTS];
-const int ROW_MAX = 5;
-const int COL_MAX = 5;
-//Intialize indivdual variables
-
-void setLightVars() 
+void SolveFK(jb::Hierarchy hierarchy)
 {
-	int x;
-	int z;
-	int index = 0;
-
-	for (int j = 0; j < MAX_POINT_LIGHTS; j++)
+	for (int i = 0; i < hierarchy.nodeCount; i++)
 	{
-		float r = (float)rand() / RAND_MAX;
-		float g = (float)rand() / RAND_MAX;
-		float b = (float)rand() / RAND_MAX;
-
-		pointLights[j].color += glm::vec4(r, g, b, 1.0f); //Set up random light value.
-		pointLights[j].radius = 2.0f;
-	}
-
-	//set grid positions
-	for (x = -4; x <= ROW_MAX; x++)
-	{
-		if (x == 0)
+		if (hierarchy.nodes[i]->parentIndex == -1)
 		{
-			x++;
+			hierarchy.nodes[i]->globalTransform = hierarchy.nodes[i]->modelMatrix();
 		}
-		for (z = -4; z < COL_MAX; z++)
-		{
-			if (z == 0)
-			{
-				z++;
-			}
-
-			pointLights[index].position = glm::vec3(z , -0.2f, x);
-			index++;
+		else
+		{ 
+			hierarchy.nodes[i]->globalTransform = hierarchy.nodes[hierarchy.nodes[i]->parentIndex]->globalTransform * hierarchy.nodes[i]->modelMatrix();
 		}
 	}
 }
-
-
-
-
-jb::FrameBuffer createGBuffer(unsigned int width, unsigned int height) {
-	jb::FrameBuffer framebuffer;
-	framebuffer.width = width;
-	framebuffer.height = height;
-
-	glCreateFramebuffers(1, &framebuffer.fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
-
-	int formats[3] = {
-		GL_RGB32F, //0 = World Position 
-		GL_RGB16F, //1 = World Normal
-		GL_RGB16F  //2 = Albedo
-	};
-	//Create 3 color textures
-	for (size_t i = 0; i < 3; i++)
-	{
-		glGenTextures(1, &framebuffer.colorBuffers[i]);
-		glBindTexture(GL_TEXTURE_2D, framebuffer.colorBuffers[i]);
-		glTexStorage2D(GL_TEXTURE_2D, 1, formats[i], width, height);
-		//Clamp to border so we don't wrap when sampling for post processing
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		//Attach each texture to a different slot.
-	//GL_COLOR_ATTACHMENT0 + 1 = GL_COLOR_ATTACHMENT1, etc
-		glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, framebuffer.colorBuffers[i], 0);
-	}
-	//Explicitly tell OpenGL which color attachments we will draw to
-	const GLenum drawBuffers[3] = {
-			GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2
-	};
-	glDrawBuffers(3, drawBuffers);
-	// texture2D depth buffer 4 GBuffer
-	
-	unsigned int gDepthBuffer;
-	glGenTextures(1, &gDepthBuffer);
-	glBindTexture(GL_TEXTURE_2D, gDepthBuffer);
-	//Create 16 bit depth buffer - must be same width/height of color buffer
-	glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, screenWidth, screenHeight);
-	//Attach to framebuffer (assuming FBO is bound)
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gDepthBuffer, 0);
-
-	//Checking for completeness
-	GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER); 
-	if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
-		printf("Framebuffer incomplete: %d", fboStatus);
-	}
-
-	//Clean up global state
-
-	glBindTexture(GL_TEXTURE_2D, 0);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	return framebuffer;
-}
-
-//ANIMATIONS Initialization
-
-struct Node {  //NOTE TO SELF MAKE A FUNCTION THAT CLEARS AND DELETES ALL POINTERS
-	ew::Transform localTransform;
-	glm::mat4 globalTransform;
-	Node* parent;
-	std::vector<Node*> children;
-};
-
-
-void SolveFKRecursive(Node* node) {
-
-	if (node->parent == nullptr)
-	{
-		node->globalTransform = node->localTransform.modelMatrix();
-	}
-	else
-	{
-		node->globalTransform = node->parent->globalTransform * node->localTransform.modelMatrix();
-	}
-
-	for (int i = 0; i < node->children.size(); i++)
-	{
-		Node* child = node->children[i];
-		SolveFKRecursive(child);
-	}
-}
-
-//Nodes
- Node* torso = new Node;
- Node* shoulderL = new Node;
- Node* armL = new Node;
- Node* wristL = new Node;
-
-//Transforms
- //jb::Transform monkeyTransform1;
- //jb::Transform monkeyTransform2;
- //jb::Transform monkeyTransform3;
- //jb::Transform monkeyTransform4;
- //jb::Transform monkeyTransform5;
- //jb::Transform monkeyTransform6;
-
-
-//void SetupHierarchy()
-//{
-//
-//	//TODO: LINK ALL THE NODES WITH TRANSFORMS
-//	torso->localTransform = monkeyTransform;
-//	shoulderL->localTransform = monkeyTransform1;
-//	armL->localTransform = monkeyTransform2;
-//	wristL->localTransform = monkeyTransform3;
-//
-//	//Adding all the Stuff together.
-//	torso->children.push_back(shoulderL);
-//	torso->children.push_back(armL);
-//	torso->children.push_back(wristL);
-//
-//	shoulderL->children.push_back(armL);
-//	shoulderL->children.push_back(wristL);
-//
-//	armL->children.push_back(wristL);
-//
-//
-//	shoulderL->parent = torso;
-//	armL->parent = shoulderL;
-//	wristL->parent = armL;
-//}
-
-
-//void fuckingHell()
-//{
-//	monkeyTransform1.position = glm::vec3(1.3f, 0, 0);
-//	monkeyTransform1.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-//
-//	monkeyTransform2.position = glm::vec3(1.3f, -0.5f, 0);
-//	monkeyTransform2.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-//
-//	monkeyTransform3.position = glm::vec3(1.3f, -1.0f, 0);
-//	monkeyTransform3.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-//
-//	monkeyTransform4.position = glm::vec3(-1.3f, 0, 0);
-//	monkeyTransform4.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-//
-//	monkeyTransform5.position = glm::vec3(-1.3f, -0.5f, 0);
-//	monkeyTransform5.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-//
-//	monkeyTransform6.position = glm::vec3(-1.3f, -1.0f, 0);
-//	monkeyTransform6.scale = glm::vec3(0.25f, 0.25f, 0.25f);
-//
-//}
-//void loadMonkeys(ew::Shader shader)
-//{
-//
-//	ew::Model monkeyModelOne = ew::Model("assets/suzanne.obj");
-//
-//	//Right
-//	shader.setMat4("_Model", monkeyTransform1.modelMatrix());
-//	monkeyModelOne.draw();
-//
-//
-//	shader.setMat4("_Model", monkeyTransform2.modelMatrix());
-//	monkeyModelOne.draw();
-//
-//	shader.setMat4("_Model", monkeyTransform3.modelMatrix());
-//	monkeyModelOne.draw();
-//
-//	//Left
-//
-//	shader.setMat4("_Model", monkeyTransform4.modelMatrix());
-//	monkeyModelOne.draw();
-//
-//	shader.setMat4("_Model", monkeyTransform5.modelMatrix());
-//	monkeyModelOne.draw();
-//
-//	shader.setMat4("_Model", monkeyTransform6.modelMatrix());
-//	monkeyModelOne.draw();
-//}
 
 
 int main() {
-
-	srand((unsigned)time(NULL));
-
-	GLFWwindow* window = initWindow("Assignment 5", screenWidth, screenHeight);
+	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
-	ew::Shader shadowMapShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
-	ew::Shader geometryShader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
-	ew::Shader deferredLitShader = ew::Shader("assets/deferredLit.vert", "assets/deferredLit.frag"); //Use instead of Lit
-	ew::Shader lightOrbShader = ew::Shader("assets/lightOrb.vert", "assets/lightOrb.frag");  //For Blitting
-	ew::Shader Postprocess = ew::Shader("assets/postprocess.vert", "assets/postprocess.frag");  //links vert and frag
-	
-	//ew::Shader LitShader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag   //ARCHIVED
 
+	//TODO: add intro code below.
+
+	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");  //links vert and frag
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj"); //load the rock Monkey
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
-	ew::Mesh sphereMesh = ew::Mesh(ew::createSphere(1.0f, 8));
+	planeTransform.position = glm::vec3(0, -2.2f, 0);
 
-	planeTransform.position = glm::vec3(0, -1.4f, 0);
+	//Hierarchy Stuff
 
+	hierarchy.addNode(0, -1, monkeyTransform); //Torso / Original Monkey
+	hierarchy.nodes[0]->setValues(glm::vec3(0, 0, 0), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+	//Left
+	hierarchy.addNode(1, 0,  monkeyTransform); //ShoulderL
+	hierarchy.nodes[1]->setValues(glm::vec3(-1.2f, 0, 0), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(0.25f));
+	hierarchy.addNode(2, 1, monkeyTransform); //ArmL
+	hierarchy.nodes[2]->setValues(glm::vec3(-1.2f, -0.5f, 0), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+	hierarchy.addNode(3, 2, monkeyTransform); //WristL
+	hierarchy.nodes[3]->setValues(glm::vec3(-1.2f, -1.0f, 0), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(2.0f));
 
-	//Main Camera
+	//Right
+	hierarchy.addNode(4, 0, monkeyTransform); //ShoulderL
+	hierarchy.nodes[4]->setValues(glm::vec3(1.2f, 0, 0), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(0.25f));
+	hierarchy.addNode(5, 4, monkeyTransform); //ArmL
+	hierarchy.nodes[5]->setValues(glm::vec3(1.2f, -0.5f, 0), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+	hierarchy.addNode(6, 5, monkeyTransform); //WristL
+	hierarchy.nodes[6]->setValues(glm::vec3(1.2f, -1.0f, 0), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(2.0f));
+
+	//Camera
 
 	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
 	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at the center of the scene
 	camera.aspectRatio = (float)screenWidth / screenHeight;  //maybe move into framebuffer?
 	camera.fov = 60.0f; //Vertical field of view, in degrees
 
-	//ShadowCam
-	shadowCam.target = glm::vec3(0.0f, 0.0f, 0.0f);
-	shadowCam.position = shadowCam.target - lightDir * 5.0f; //check this
-	shadowCam.orthographic = true;
-	shadowCam.orthoHeight = 10.0f;
-	shadowCam.nearPlane = 0.001f;
-	shadowCam.farPlane = 15.0f;
-	shadowCam.aspectRatio = 1.0f;
-
 	//Handles to OpenGL object are unsigned integers
 	GLuint brickTexture = ew::loadTexture("assets/Rock051_2K-JPG_Color.jpg"); //Stopped Right here (12/24pgs)
 
+
 	//Global OpenGL variables
 	glEnable(GL_CULL_FACE);
-	//glCullFace(GL_BACK); //Back face culling
+	glCullFace(GL_BACK); //Back face culling
 	glEnable(GL_DEPTH_TEST); //Depth testing
-
-	unsigned int fbo, colorBuffer;
-	//Create Framebuffer Object
-	glCreateFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	//Create 8 bit RGBA color buffer
-	glGenTextures(1, &colorBuffer);
-	glBindTexture(GL_TEXTURE_2D, colorBuffer);
-	glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, screenWidth, screenHeight);
-	//Attach color buffer to framebuffer
-	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
-
-	unsigned int depthBuffer;
-	glGenTextures(1, &depthBuffer);
-	glBindTexture(GL_TEXTURE_2D, depthBuffer);
-	//Create 16 bit depth buffer - must be same width/height of color buffer
-	glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, screenWidth, screenHeight);
-	//Attach to framebuffer (assuming FBO is bound)
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffer, 0);
-
-
-	//MainVAO
-	unsigned int mainVAO;
-	glCreateVertexArrays(1, &mainVAO);
-
-	//DummyVAO 
-	unsigned int dummyVAO;
-	glCreateVertexArrays(1, &dummyVAO);
-
-	//Shadow Map Creation
-	unsigned int shadowFBO, shadowMap;
-	glCreateFramebuffers(1, &shadowFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
-
-	glGenTextures(1, &shadowMap);
-	glBindTexture(GL_TEXTURE_2D, shadowMap);
-	//16 bit depth values, 2k res
-	glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, 2048, 2048);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	//Pixels outside frustum should have max distance (white).
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-	float borderColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
-
-	glDrawBuffer(GL_NONE);
-	glReadBuffer(GL_NONE);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	//Geometry Creation
-	unsigned int gFBO;
-	jb::FrameBuffer gBuffer = createGBuffer(screenWidth, screenHeight);
-
-	//Light initialization
-	setLightVars();
-
-
-	//Organize body
-	//SetupHierarchy();
 
 
 	while (!glfwWindowShouldClose(window)) {
@@ -410,148 +122,54 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
-		//SHADOW PASS
+		glClearColor(0.6f,0.8f,0.92f,1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glCullFace(GL_FRONT);
+		//monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		hierarchy.nodes[0]->rotation = glm::rotate(hierarchy.nodes[0]->rotation, deltaTime, glm::vec3(2.0, 1.0, 2.0));
 
-		shadowCam.position = shadowCam.target - lightDir * 5.0f;
+		hierarchy.nodes[1]->rotation = glm::rotate(hierarchy.nodes[1]->rotation, deltaTime, glm::vec3(2.0, 0.0, 0.0));
+		hierarchy.nodes[2]->rotation = glm::rotate(hierarchy.nodes[2]->rotation, deltaTime, glm::vec3(1.0, 1.0, 0.0));
+		hierarchy.nodes[3]->rotation = glm::rotate(hierarchy.nodes[3]->rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 
-		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
-		glViewport(0, 0, 2048, 2048);
-		glClear(GL_DEPTH_BUFFER_BIT);
+		hierarchy.nodes[4]->rotation = glm::rotate(hierarchy.nodes[4]->rotation, deltaTime, glm::vec3(-2.0, 1.0, 0.0));
+		hierarchy.nodes[5]->rotation = glm::rotate(hierarchy.nodes[5]->rotation, deltaTime, glm::vec3(-1.0, 1.0, 0.0));
+		hierarchy.nodes[6]->rotation = glm::rotate(hierarchy.nodes[6]->rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 
-		glm::mat4 lightProjMat = shadowCam.projectionMatrix();
-		glm::mat4 lightViewMat = shadowCam.viewMatrix();
+		SolveFK(hierarchy);
 
-		glm::mat4 lightViewProj = lightProjMat * lightViewMat;
-
-		shadowMapShader.use();
-		shadowMapShader.setMat4("_ViewProjection", lightViewProj);
-		shadowMapShader.setMat4("_Model", monkeyTransform.modelMatrix());
-
-		monkeyModel.draw(); //Big Monkey/Torso
-
-		//loadMonkeys(shadowMapShader); //Loads Models of each monkey joints
-
-		shadowMapShader.setMat4("_Model", planeTransform.modelMatrix());
-		planeMesh.draw();
-
-		glCullFace(GL_BACK);
-	
-		/*monkeyTransform.rotation = glm::rotate(torso->globalTransform, deltaTime, glm::vec3(0.0, 1.0, 0.0)); */
 		cameraController.move(window, &camera, deltaTime);
+
+
 		glBindTextureUnit(0, brickTexture);
-		glBindTextureUnit(1, shadowMap);
 
-		//END OF SHADOW PASS
-		
-		//GEOMETRY PASS
+		shader.use();
 
-		glBindFramebuffer(GL_FRAMEBUFFER, gBuffer.fbo); 
-		glViewport(0, 0, gBuffer.width, gBuffer.height); 
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
-		
-		geometryShader.use();
-		geometryShader.setInt("_MainTex", 0);
-		geometryShader.setMat4("_Model", monkeyTransform.modelMatrix());
-		geometryShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		monkeyModel.draw(); //Draws monkey model using current shader
+		shader.setInt("_MainTex", 0);
+		shader.setVec3("_EyePos", camera.position);
 
-		
-		//loadMonkeys(geometryShader);
-		SolveFKRecursive(wristL);
-		geometryShader.setMat4("_Model", planeTransform.modelMatrix());
+		shader.setFloat("_Material.Ka", material.Ka);
+		shader.setFloat("_Material.Kd", material.Kd);
+		shader.setFloat("_Material.Ks", material.Ks);
+		shader.setFloat("_Material.Shininess", material.Shininess);
+
+
+		for (int i = 0; i < hierarchy.nodeCount; i++)
+		{
+			shader.setMat4("_Model", hierarchy.nodes[i]->globalTransform);
+			shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+			monkeyModel.draw(); //Draws monkey model using current shader
+		}
+
+		shader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
 
-		//END OF GEOMETRY PASS
-		
-		//LIGHTING PASS
-
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-		glViewport(0, 0, screenWidth, screenHeight);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		deferredLitShader.use();
-
-		deferredLitShader.setVec3("_EyePos", camera.position);
-		deferredLitShader.setVec3("_LightDirection", lightDir);
-
-		deferredLitShader.setFloat("_Material.Ka", material.Ka);
-		deferredLitShader.setFloat("_Material.Kd", material.Kd);
-		deferredLitShader.setFloat("_Material.Ks", material.Ks);
-		deferredLitShader.setFloat("_Material.Shininess", material.Shininess);
-		deferredLitShader.setFloat("_Shadow.minBias", shadow.minBias);
-		deferredLitShader.setFloat("_Shadow.maxBias", shadow.maxBias);
-
-		for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
-			//Creates prefix "_PointLights[0]." etc
-			std::string prefix = "_PointLights[" + std::to_string(i) + "].";
-			deferredLitShader.setVec3(prefix + "position", pointLights[i].position);
-			deferredLitShader.setFloat(prefix + "radius", pointLights[i].radius);
-			deferredLitShader.setVec4(prefix + "color", pointLights[i].color);
-		}
-
-		//deferredLitShader.setMat4("_Model", monkeyTransform.modelMatrix());
-		//deferredLitShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		deferredLitShader.setMat4("_LightViewProj", lightViewProj);
-
-		glBindTextureUnit(0, gBuffer.colorBuffers[0]);
-		glBindTextureUnit(1, gBuffer.colorBuffers[1]);
-		glBindTextureUnit(2, gBuffer.colorBuffers[2]);
-		glBindTextureUnit(3, shadowMap);
-
-		glBindVertexArray(mainVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, screenWidth, screenHeight);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		//END OF LIGHTING PASS
-
-		//BLIT SOME SHIT
-	
-		//TODO: Render and blit orbs for each point light.
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.fbo); //Read from gBuffer 
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo); //Write to current fbo
-		glBlitFramebuffer(0, 0, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-
-		//Draw all light orbs
-		lightOrbShader.use();
-		lightOrbShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-		{
-			glm::mat4 m = glm::mat4(1.0f);
-			m = glm::translate(m, pointLights[i].position);
-			m = glm::scale(m, glm::vec3(0.2f)); //Whatever radius you want
-
-			lightOrbShader.setMat4("_Model", m);
-			lightOrbShader.setVec3("_Color", pointLights[i].color);
-			sphereMesh.draw();
-		}
-
-
-		//END BLITS
-		 
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, screenWidth, screenHeight); 
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
-		
-		//POSTPROCESS PASS
-
-		Postprocess.use();
-		Postprocess.setFloat("_gammaPower.Kp", gammaPower.Kp);
-	
-		glBindTextureUnit(0, colorBuffer);
-		glBindVertexArray(dummyVAO);
-
-		//6 vertices for quad, 3 for triangle
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-		drawUI(shadowMap, gBuffer);
-
+		drawUI();
 		glfwSwapBuffers(window);
 	}
 	printf("Shutting down...");
 }
+
 
 
 //Camera reset
@@ -562,19 +180,8 @@ void resetCamera(ew::Camera* camera, ew::CameraController* controller) {
 	controller->yaw = controller->pitch = 0;
 }
 
-void toggleGammaCorrection()
-{
-	if (GammaCorrectionOn == true)
-	{
-		GammaCorrectionOn = false;
-	}
-	else
-	{
-		GammaCorrectionOn = true;
-	}
-}
 
-void drawUI(unsigned int shadowMap, jb::FrameBuffer gBuffer) {
+void drawUI() {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui::NewFrame();
@@ -589,36 +196,9 @@ void drawUI(unsigned int shadowMap, jb::FrameBuffer gBuffer) {
 		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
-	if (ImGui::CollapsingHeader("Light")) {
-		ImGui::SliderFloat3("Direction", (float*)&lightDir, -1.0f, 1.0f);
-		ImGui::SliderFloat("Minimum Bias", &shadow.minBias, 0.001f, 0.5f);
-		ImGui::SliderFloat("Maximum Bias", &shadow.maxBias, 0.001f, 0.5f);
-	}
-	if (ImGui::CollapsingHeader("Gamma Correction")) {
-		ImGui::SliderFloat("Power", &gammaPower.Kp, 1.0f, 2.2f);
-	}
+
+
 	ImGui::End(); 
-
-	ImGui::Begin("Shadow Map");
-	//Using a Child allow to fill all the space of the window.
-	ImGui::BeginChild("Shadow Map");
-	//Stretch image to be window size
-	ImVec2 windowSize = ImGui::GetWindowSize();
-	//Invert 0-1 V to flip vertically for ImGui display
-	//shadowMap is the texture2D handle
-	ImGui::Image((ImTextureID)shadowMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
-	ImGui::EndChild();
-	ImGui::End();
-
-	ImGui::Begin("GBuffers"); 
-	{
-		ImVec2 texSize = ImVec2(gBuffer.width / 4, gBuffer.height / 4);
-		for (size_t i = 0; i < 3; i++)
-		{
-			ImGui::Image((ImTextureID)gBuffer.colorBuffers[i], texSize, ImVec2(0, 1), ImVec2(1, 0));
-		}
-		ImGui::End();
-	}
 
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
